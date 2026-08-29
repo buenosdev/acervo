@@ -195,7 +195,7 @@ class UTorrent(Motor):
         """Tenta apontar a pasta de download. Nunca levanta excecao.
 
         A Interface Web do uTorrent nao aceita caractere fora do ASCII na
-        consulta: um caminho como "C:/Users/Kairós/..." devolve HTTP 400, e em
+        consulta: um caminho como "C:/Users/José/..." devolve HTTP 400, e em
         cp1252 ele responde 200 mas ignora o valor. Como isso derrubava o
         download inteiro — a pessoa via "uTorrent devolveu HTTP 400" e nada
         acontecia —, aqui a falha vira aviso: o torrent entra assim mesmo, na

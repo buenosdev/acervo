@@ -101,7 +101,7 @@ def main() -> int:
     casos = [
         ("C:/Torrent/_baixando", True),
         ("C:\\Downloads\\filmes", True),
-        ("C:/Users/Kairós/Documents/Torrent/_baixando", False),
+        ("C:/Users/José/Documents/Torrent/_baixando", False),
         ("D:/Vídeos/baixando", False),
     ]
     ruins = [c for c, esperado in casos if caminho_aceito(c) != esperado]
