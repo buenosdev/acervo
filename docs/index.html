@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acervo — sua biblioteca de torrents com cara de streaming</title>
+<meta name="description" content="Aplicativo de desktop que transforma seus arquivos .torrent num catálogo com capas. O .torrent é a biblioteca; o vídeo é cache. Software livre, GPL-3.0.">
+
+<meta property="og:title" content="Acervo — sua biblioteca de torrents com cara de streaming">
+<meta property="og:description" content="1,24 TiB de conteúdo indexado por 14 MiB de .torrent. App nativo em Qt, software livre.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="imagens/catalogo.jpg">
+
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%234d90ff'/><text y='.9em' x='50%25' text-anchor='middle' font-size='62'>📚</text></svg>">
+
+<style>
+  :root {
+    --fundo: #ffffff;
+    --fundo-2: #f4f4f6;
+    --linha: #e0e0e6;
+    --texto: #26262e;
+    --forte: #101014;
+    --fraco: #55555f;
+    --azul: #1f5fd0;
+    --azul-texto: #ffffff;
+    --verde: #12794a;
+    --sombra: 0 1px 2px rgba(16,16,20,.06), 0 8px 28px rgba(16,16,20,.08);
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fundo: #0d0d0f;
+      --fundo-2: #131319;
+      --linha: #22222c;
+      --texto: #d4d4d8;
+      --forte: #e8e8ec;
+      --fraco: #9a9aa6;
+      --azul: #4d90ff;
+      --azul-texto: #04101f;
+      --verde: #34d17f;
+      --sombra: 0 1px 2px rgba(0,0,0,.4), 0 12px 40px rgba(0,0,0,.5);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--fundo);
+    color: var(--texto);
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .envolve { width: min(1080px, 100% - 2.5rem); margin-inline: auto; }
+  a { color: var(--azul); }
+
+  /* ------------------------------------------------------------- topo */
+  header { padding: 4.5rem 0 3rem; }
+  .marca {
+    display: inline-flex; align-items: center; gap: .55rem;
+    font-family: var(--mono); font-size: .78rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--fraco); margin-bottom: 1.4rem;
+  }
+  .marca::before {
+    content: ""; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--verde);
+  }
+  h1 {
+    font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1.08;
+    letter-spacing: -.028em; color: var(--forte); margin: 0 0 1.1rem;
+    max-width: 17ch;
+  }
+  .chamada { font-size: clamp(1.05rem, 2.4vw, 1.28rem); max-width: 60ch; margin: 0 0 1.2rem; }
+  .chamada strong { color: var(--forte); font-weight: 600; }
+
+  .numeros {
+    display: flex; flex-wrap: wrap; gap: 2.4rem;
+    margin: 2.2rem 0 2.4rem; padding: 1.4rem 0;
+    border-block: 1px solid var(--linha);
+  }
+  .numero b {
+    display: block; font-size: 1.75rem; color: var(--forte);
+    font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1.2;
+  }
+  .numero span { font-size: .87rem; color: var(--fraco); }
+
+  .acoes { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+  .botao {
+    display: inline-flex; align-items: center; gap: .5rem;
+    padding: .78rem 1.3rem; border-radius: 9px; text-decoration: none;
+    font-weight: 600; font-size: .97rem; border: 1px solid transparent;
+    transition: transform .12s ease, filter .12s ease;
+  }
+  .botao:hover { transform: translateY(-1px); filter: brightness(1.08); }
+  .botao.principal { background: var(--azul); color: var(--azul-texto); }
+  .botao.secundario { background: var(--fundo-2); color: var(--forte); border-color: var(--linha); }
+  .nota-baixar { font-size: .84rem; color: var(--fraco); margin-top: .9rem; }
+
+  /* --------------------------------------------------------- imagens */
+  figure { margin: 0; }
+  .tela {
+    width: 100%; height: auto; display: block; border-radius: 11px;
+    border: 1px solid var(--linha); box-shadow: var(--sombra);
+    background: var(--fundo-2);
+  }
+  .grande { margin: 1rem 0 4.5rem; }
+  figcaption { font-size: .87rem; color: var(--fraco); margin-top: .8rem; }
+
+  /* --------------------------------------------------------- secoes */
+  section { padding-bottom: 4.5rem; }
+  h2 {
+    font-size: clamp(1.5rem, 3.4vw, 2rem); letter-spacing: -.02em;
+    color: var(--forte); margin: 0 0 .7rem; max-width: 24ch;
+  }
+  .sub { color: var(--fraco); max-width: 62ch; margin: 0 0 2rem; }
+
+  .ideia {
+    background: var(--fundo-2); border: 1px solid var(--linha);
+    border-radius: 12px; padding: clamp(1.4rem, 4vw, 2.2rem);
+    margin-bottom: 4.5rem;
+  }
+  .ideia p { max-width: 66ch; }
+  .ideia p:last-child { margin-bottom: 0; }
+
+  .recursos { display: grid; gap: 1.5rem 2.2rem; grid-template-columns: repeat(auto-fit, minmax(258px, 1fr)); }
+  .recurso h3 {
+    font-size: 1.02rem; color: var(--forte); margin: 0 0 .35rem;
+    display: flex; align-items: baseline; gap: .5rem;
+  }
+  .recurso h3 em {
+    font-style: normal; font-family: var(--mono); font-size: .72rem;
+    color: var(--fraco); letter-spacing: .06em;
+  }
+  .recurso p { margin: 0; font-size: .95rem; color: var(--texto); }
+
+  .par { display: grid; gap: 2rem; align-items: center; margin-bottom: 4rem; }
+  @media (min-width: 860px) {
+    .par { grid-template-columns: 1.15fr 1fr; }
+    .par.invertido > figure { order: -1; }
+  }
+  .par h3 { font-size: 1.25rem; color: var(--forte); margin: 0 0 .55rem; letter-spacing: -.01em; }
+  .par p { margin: 0 0 .7rem; }
+  .par p:last-child { margin-bottom: 0; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+  .rolavel { overflow-x: auto; }
+  th, td { text-align: left; padding: .62rem .8rem; border-bottom: 1px solid var(--linha); }
+  th { color: var(--fraco); font-weight: 600; font-size: .82rem; text-transform: uppercase; letter-spacing: .05em; }
+  td code { font-family: var(--mono); font-size: .87em; }
+
+  footer {
+    border-top: 1px solid var(--linha); padding: 2.5rem 0 3.5rem;
+    color: var(--fraco); font-size: .89rem;
+  }
+  footer p { max-width: 68ch; }
+  .aviso-tmdb { font-size: .82rem; opacity: .85; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="envolve">
+    <div class="marca">Acervo · software livre</div>
+    <h1>Sua biblioteca de torrents com cara de streaming.</h1>
+    <p class="chamada">
+      O Acervo lê seus arquivos <code>.torrent</code> e monta um catálogo com capa,
+      sinopse e nota. <strong>O <code>.torrent</code> é a biblioteca permanente; o
+      vídeo é cache</strong> — você baixa quando quer ver e devolve o espaço quando
+      terminar.
+    </p>
+
+    <div class="numeros">
+      <div class="numero"><b>1,24 TiB</b><span>de conteúdo indexado…</span></div>
+      <div class="numero"><b>14 MiB</b><span>…de arquivos <code>.torrent</code></span></div>
+      <div class="numero"><b>1 : 90.000</b><span>a proporção que torna isso possível</span></div>
+    </div>
+
+    <div class="acoes">
+      <a class="botao principal" href="https://github.com/buenosdev/acervo/releases/latest/download/Acervo.exe">
+        ↓ Baixar para Windows
+      </a>
+      <a class="botao secundario" href="https://github.com/buenosdev/acervo">Código-fonte no GitHub</a>
+    </div>
+    <p class="nota-baixar">
+      40 MB · sem instalador, sem dependências · Windows 10 ou mais novo ·
+      <a href="https://github.com/buenosdev/acervo/releases/latest">ver todas as versões</a>
+    </p>
+  </div>
+</header>
+
+<div class="envolve">
+  <figure class="grande">
+    <img class="tela" src="imagens/catalogo.jpg" width="1360" height="880" loading="eager"
+         alt="Catálogo do Acervo: grade de capas de filmes e séries, com barra lateral mostrando Filmes, Séries, Jogos e onde cada obra está.">
+    <figcaption>O catálogo. Barra lateral por tipo e por onde a obra está; capas vindas do TMDB e do SteamGridDB.</figcaption>
+  </figure>
+</div>
+
+<section class="envolve">
+  <div class="ideia">
+    <h2>A ideia</h2>
+    <p>
+      Um acervo grande não cabe no disco. O do desenvolvedor tem 1,24 TiB — e o
+      HD tinha 1,22 TiB livres, ou seja, a biblioteca inteira não caberia nem
+      vazia.
+    </p>
+    <p>
+      Mas o <code>.torrent</code> não é o filme: é o endereço dele. Guardar os
+      <code>.torrent</code> custa 14 MiB e mantém tudo ao alcance. O Acervo
+      trata essa pasta como a biblioteca de verdade, mostra o que há nela como
+      um serviço de streaming mostraria, e baixa só o que você decidir ver.
+    </p>
+    <p>
+      Quando o espaço apertar, ele confere se ainda há quem compartilhe cada
+      arquivo antes de liberar. <strong>Se não houver semeadores, ele se recusa
+      a apagar</strong> — sem eles, apagar deixa de ser reversível.
+    </p>
+  </div>
+
+  <h2>O que ele faz</h2>
+  <p class="sub">Sem servidor, sem porta de rede, sem navegador envolvido. É uma janela nativa em Qt que abre com dois cliques.</p>
+
+  <div class="recursos">
+    <div class="recurso">
+      <h3>Catálogo <em>grade ou lista</em></h3>
+      <p>Entende o nome do release: título, ano, temporada, episódio, qualidade e idioma. Centenas de obras rolam dentro do orçamento de um quadro.</p>
+    </div>
+    <div class="recurso">
+      <h3>Capas <em>automáticas</em></h3>
+      <p>Busca capa, sinopse e nota no TMDB, e capa de jogo no SteamGridDB — em segundo plano, sem você pedir.</p>
+    </div>
+    <div class="recurso">
+      <h3>Download <em>sem configurar</em></h3>
+      <p>Usa o aria2, que o próprio app baixa e cuida: nada para instalar, nada para ligar. Quem preferir pode apontar um qBittorrent ou uTorrent.</p>
+    </div>
+    <div class="recurso">
+      <h3>Organização <em>com prévia</em></h3>
+      <p>Renomeia para o padrão que Jellyfin, Plex e Kodi leem sozinhos — mostrando antes o que vai mudar, arquivo por arquivo. Nada é apagado.</p>
+    </div>
+    <div class="recurso">
+      <h3>Duplicatas <em>em três níveis</em></h3>
+      <p>Mesmo infohash, mesma obra em qualidades diferentes, e arquivos repetidos no disco — cada caso com um tratamento diferente.</p>
+    </div>
+    <div class="recurso">
+      <h3>Acessibilidade <em>de verdade</em></h3>
+      <p>Três temas (inclusive alto contraste), tamanho de texto ajustável, tudo alcançável por teclado e anunciado pelo leitor de tela.</p>
+    </div>
+  </div>
+</section>
+
+<section class="envolve">
+  <div class="par">
+    <div>
+      <h3>A obra por inteiro</h3>
+      <p>
+        Imagem de fundo, sinopse, nota e a lista de episódios ou arquivos. O nome
+        legível fica em destaque; o nome bruto do release fica de legenda, pequeno
+        — dá para conferir de qual arquivo se trata sem ele dominar a tela.
+      </p>
+      <p>
+        Se o arquivo está no disco, o botão reproduz no seu player padrão. Se não
+        está, o mesmo botão baixa.
+      </p>
+    </div>
+    <figure>
+      <img class="tela" src="imagens/obra.jpg" width="1360" height="880" loading="lazy"
+           alt="Tela de uma série no Acervo: imagem de fundo, título grande, sinopse, botão Baixar, lista de episódios e ficha com tamanho, seeds e hash.">
+    </figure>
+  </div>
+
+  <div class="par invertido">
+    <div>
+      <h3>Um guia que aponta as coisas</h3>
+      <p>
+        Na primeira abertura, o app escurece a janela e acende um holofote sobre
+        cada controle, explicando aquele controle ali — com o seu catálogo atrás,
+        não numa tela de exemplo.
+      </p>
+      <p>
+        Dez passos, menos de um minuto, e <code>Esc</code> sai a qualquer momento.
+        Depois ele fica em Configurações, para quem quiser rever.
+      </p>
+    </div>
+    <figure>
+      <img class="tela" src="imagens/guia.jpg" width="1360" height="880" loading="lazy"
+           alt="Guia do Acervo: a janela escurecida com um holofote azul sobre os filtros da barra lateral e um cartão explicando o que eles fazem.">
+    </figure>
+  </div>
+
+  <div class="par">
+    <div>
+      <h3>Configurar sem sair do app</h3>
+      <p>
+        Pastas, chaves de API, travas de segurança e cliente de torrent: tudo numa
+        janela só. O botão <em>“Configurar o download para mim”</em> olha a máquina,
+        descobre o que dá para descobrir e resolve o que dá para resolver sozinho.
+      </p>
+      <p>
+        O padrão é o aria2, que não exige nada instalado. qBittorrent e uTorrent
+        ficam disponíveis, mas fora do caminho de quem só quer baixar um filme.
+      </p>
+    </div>
+    <figure>
+      <img class="tela" src="imagens/configuracoes.png" width="1360" height="880" loading="lazy"
+           alt="Aba Torrent das configurações do Acervo, com a escolha entre aria2 e usar um cliente já instalado.">
+    </figure>
+  </div>
+</section>
+
+<section class="envolve">
+  <h2>Baixar e usar</h2>
+  <p class="sub">Não há instalador: o executável é um arquivo só, e os dados ficam ao lado dele.</p>
+
+  <div class="rolavel">
+    <table>
+      <tr><th>Requisito</th><th>Detalhe</th></tr>
+      <tr><td>Sistema</td><td>Windows 10 ou mais novo, 64 bits</td></tr>
+      <tr><td>Instalação</td><td>Nenhuma — baixe <code>Acervo.exe</code> e dê dois cliques</td></tr>
+      <tr><td>Chaves de API</td><td>Gratuitas e opcionais. Sem elas tudo funciona, menos as capas automáticas</td></tr>
+      <tr><td>Cliente de torrent</td><td>Opcional. O app baixa o aria2 sozinho se você quiser usar o botão Baixar</td></tr>
+      <tr><td>Do código-fonte</td><td><code>python acervo.py</code> — precisa de Python 3.12+ e PySide6</td></tr>
+    </table>
+  </div>
+
+  <p style="margin-top:1.6rem">
+    O Windows SmartScreen vai avisar que o programa é de origem desconhecida. É o
+    esperado para um executável sem assinatura digital paga — em
+    <em>Mais informações → Executar assim mesmo</em>. Se preferir não confiar num
+    binário, o código-fonte está inteiro no GitHub e gera o mesmo executável.
+  </p>
+
+  <div class="acoes" style="margin-top:1.8rem">
+    <a class="botao principal" href="https://github.com/buenosdev/acervo/releases/latest/download/Acervo.exe">↓ Baixar o Acervo.exe</a>
+    <a class="botao secundario" href="https://github.com/buenosdev/acervo">Ver o código</a>
+  </div>
+</section>
+
+<footer>
+  <div class="envolve">
+    <p>
+      <strong>Acervo</strong> — Copyright © 2026 Davi Bueno (buenosdev).
+      Software livre sob a
+      <a href="https://github.com/buenosdev/acervo/blob/main/LICENSE">GPL-3.0-or-later</a>:
+      use, estude, modifique e compartilhe à vontade; se distribuir uma versão
+      modificada, distribua também o código dela.
+    </p>
+    <p>
+      Interface em <a href="https://doc.qt.io/qtforpython/">PySide6 / Qt</a> (LGPL-3.0).
+      Download por <a href="https://aria2.github.io/">aria2</a> (GPL-2.0+), baixado
+      do projeto oficial e não redistribuído aqui.
+      Capas de jogos por <a href="https://www.steamgriddb.com/">SteamGridDB</a>.
+    </p>
+    <p class="aviso-tmdb">
+      Este produto usa a API do <a href="https://www.themoviedb.org/">TMDB</a>, mas
+      não é endossado nem certificado pelo TMDB.
+      <em>This product uses the TMDB API but is not endorsed or certified by TMDB.</em>
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>

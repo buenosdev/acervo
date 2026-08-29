@@ -4,6 +4,8 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
 [![Qt: PySide6](https://img.shields.io/badge/interface-PySide6%20(Qt)-41cd52)](https://doc.qt.io/qtforpython/)
 
+**[Site com capturas de tela e download →](https://buenosdev.github.io/acervo/)**
+
 **Software livre**, sob a [GPL-3.0-or-later](LICENSE). O código é aberto, pode
 ser usado, estudado, modificado e redistribuído — e quem distribuir uma versão
 modificada precisa abrir o código dela também. Contribuições são bem-vindas:
@@ -16,6 +18,17 @@ cache que você baixa quando quer e devolve quando terminar.
 No acervo em que foi desenvolvido: **1,24 TiB de conteúdo indexado por 14,4 MiB
 de `.torrent`** — proporção de 1 : 90.000. O disco tinha 1,22 TiB livres, ou
 seja, a biblioteca inteira não caberia. É essa a ideia.
+
+## Baixar
+
+Pegue o `Acervo.exe` na
+**[última versão](https://github.com/buenosdev/acervo/releases/latest)** — um
+arquivo só, 40 MB, sem instalador e sem dependências.
+
+O Windows SmartScreen vai avisar que o programa é de origem desconhecida: é o
+esperado para um executável sem assinatura digital paga. Em **Mais informações →
+Executar assim mesmo**. Quem preferir não confiar num binário gera o mesmo
+executável a partir deste código (veja [Gerando o executável](#gerando-o-executável)).
 
 ## Como abrir
 
