@@ -3,7 +3,23 @@
     python acervo.py
 
 Janela nativa em Qt. Nada de servidor web, nada de navegador.
+
+Copyright (C) 2026 Davi Bueno (buenosdev)
+
+Este programa e software livre: voce pode redistribui-lo e/ou modifica-lo sob
+os termos da Licenca Publica Geral GNU, conforme publicada pela Free Software
+Foundation, na versao 3 da licenca ou (a seu criterio) qualquer versao
+posterior.
+
+Este programa e distribuido na esperanca de ser util, mas SEM NENHUMA GARANTIA;
+sem sequer a garantia implicita de COMERCIALIZACAO ou ADEQUACAO A UM DETERMINADO
+FIM. Veja a Licenca Publica Geral GNU para mais detalhes.
+
+Voce deve ter recebido uma copia da Licenca Publica Geral GNU junto com este
+programa. Se nao, veja <https://www.gnu.org/licenses/>.
 """
+
+
 from __future__ import annotations
 
 import sys

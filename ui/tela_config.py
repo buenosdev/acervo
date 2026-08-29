@@ -12,14 +12,16 @@ import sqlite3
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QFileDialog,
                                QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
                                QMessageBox, QPushButton, QRadioButton,
                                QScrollArea, QSpinBox, QTabWidget, QVBoxLayout,
                                QWidget)
 
-from core import ajustes, capas, config, db, duplicatas, metadata, scanner
+from core import (ajustes, capas, config, db, duplicatas, metadata, scanner,
+                  sobre)
 
 from . import tema, widgets
 from .tarefas import vivo
@@ -64,6 +66,7 @@ class TelaConfig(QWidget):
         self.abas.addTab(self._aba_seguranca(), "Segurança")
         self.abas.addTab(self._aba_duplicatas(), "Duplicatas")
         self.abas.addTab(self._aba_aparencia(), "Aparência")
+        self.abas.addTab(self._aba_sobre(), "Sobre")
         col.addWidget(self.abas, 1)
 
         self.retorno_salvar = Retorno()
@@ -578,6 +581,77 @@ class TelaConfig(QWidget):
         janela = self.window()
         if hasattr(janela, "abrir_guia"):
             janela.abrir_guia()
+
+    def _aba_sobre(self) -> QWidget:
+        """Quem fez, sob que licenca, e de quem sao os dados que aparecem.
+
+        Nao e enfeite: a GPL pede que um programa interativo diga sob que
+        licenca roda, e os termos do TMDB exigem a atribuicao onde os dados
+        deles aparecem. Ficar so no README nao cumpre nenhuma das duas.
+        """
+        w = QWidget()
+        col = QVBoxLayout(w)
+        col.setContentsMargins(4, 14, 4, 10)
+        col.setSpacing(12)
+
+        nome = QLabel("Acervo")
+        nome.setObjectName("tituloSecaoGrande")
+        col.addWidget(nome)
+        col.addWidget(widgets.ajuda(
+            f"Versão {sobre.VERSAO} — {sobre.DESCRICAO}"))
+
+        grupo = QGroupBox("Software livre")
+        gl = QVBoxLayout(grupo)
+        gl.addWidget(widgets.ajuda(
+            sobre.COPYRIGHT + "\n\n" +
+            "Este programa é software livre, sob a Licença Pública Geral GNU, "
+            "versão 3 ou posterior. Você pode usá-lo, estudá-lo, modificá-lo e "
+            "redistribuí-lo. Se distribuir uma versão modificada, precisa "
+            "distribuir o código dela também.\n\n"
+            "Ele vem SEM NENHUMA GARANTIA, na medida permitida por lei."))
+        linha = QHBoxLayout()
+        b_lic = QPushButton("Ver a licença completa")
+        b_lic.setAccessibleName("Abrir o texto da Licença Pública Geral GNU")
+        b_lic.clicked.connect(self._ver_licenca)
+        linha.addWidget(b_lic)
+        b_rep = QPushButton("Código-fonte no GitHub")
+        b_rep.setAccessibleName("Abrir o repositório do projeto no navegador")
+        b_rep.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(sobre.REPOSITORIO)))
+        linha.addWidget(b_rep)
+        linha.addStretch(1)
+        gl.addLayout(linha)
+        col.addWidget(grupo)
+
+        grupo2 = QGroupBox("Software e dados de terceiros")
+        g2 = QVBoxLayout(grupo2)
+        g2.addWidget(widgets.ajuda(
+            "PySide6 / Qt — LGPL-3.0, vinculado dinamicamente.\n"
+            "aria2 — GPL-2.0 ou posterior. Não é redistribuído: o app baixa o "
+            "binário oficial do projeto, com a sua confirmação.\n\n"
+            "Este produto usa a API do TMDB, mas não é endossado nem "
+            "certificado pelo TMDB.\n"
+            "This product uses the TMDB API but is not endorsed or certified "
+            "by TMDB.\n\n"
+            "Capas de jogos por SteamGridDB."))
+        col.addWidget(grupo2)
+
+        col.addStretch(1)
+        return w
+
+    def _ver_licenca(self) -> None:
+        from core import local
+
+        for base in (local.pasta_recursos(), local.pasta_dados()):
+            caminho = Path(base) / "LICENSE"
+            if caminho.is_file():
+                caixa = QMessageBox(self)
+                caixa.setWindowTitle("Licença Pública Geral GNU, versão 3")
+                caixa.setText("O Acervo é distribuído sob a GPL-3.0-or-later.")
+                caixa.setDetailedText(
+                    caminho.read_text(encoding="utf-8", errors="replace"))
+                caixa.exec()
+                return
+        QDesktopServices.openUrl(QUrl(sobre.URL_LICENCA))
 
     def _aba_aparencia(self) -> QWidget:
         w = QWidget()

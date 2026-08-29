@@ -1,5 +1,14 @@
 # Acervo
 
+[![Licença: GPL-3.0](https://img.shields.io/badge/licen%C3%A7a-GPL--3.0--or--later-blue)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
+[![Qt: PySide6](https://img.shields.io/badge/interface-PySide6%20(Qt)-41cd52)](https://doc.qt.io/qtforpython/)
+
+**Software livre**, sob a [GPL-3.0-or-later](LICENSE). O código é aberto, pode
+ser usado, estudado, modificado e redistribuído — e quem distribuir uma versão
+modificada precisa abrir o código dela também. Contribuições são bem-vindas:
+veja [Como contribuir](#como-contribuir).
+
 Aplicativo de desktop para Windows que transforma seus arquivos `.torrent` num
 catálogo com capas. O `.torrent` é a biblioteca permanente; o arquivo de vídeo é
 cache que você baixa quando quer e devolve quando terminar.
@@ -153,14 +162,60 @@ O SteamGridDB fica atrás do Cloudflare, que recusa o `User-Agent` padrão do
 Python com erro 1010 — o app manda um cabeçalho normal. Se aparecer 403, é isso
 e não a chave: costuma passar em alguns minutos.
 
-## Publicando no GitHub
+## Como contribuir
+
+O projeto é aberto e as contribuições passam pelo GitHub:
+
+1. abra uma *issue* descrevendo o problema ou a ideia — inclusive "não entendi
+   isto aqui", que costuma apontar um defeito de interface;
+2. para mudar código, faça um *fork*, trabalhe num ramo e abra um *pull
+   request* descrevendo **o problema que a mudança resolve**, não só o que ela
+   faz;
+3. rode a bateria antes de enviar (veja
+   [Ferramentas de linha de comando](#ferramentas-de-linha-de-comando)). Um
+   *pull request* que quebra um teste existente precisa explicar por quê;
+4. defeito com causa identificada vira teste. Boa parte da suíte nasceu assim —
+   `casos_pintura` existe porque a rolagem engasgava, `casos_utorrent` porque
+   escrever na configuração de outro programa é arriscado.
+
+Ao contribuir, você concorda em licenciar sua contribuição sob a GPL-3.0-or-later,
+como o resto do projeto.
+
+## Licença
+
+Copyright (C) 2026 Davi Bueno (buenosdev)
+
+Este programa é software livre: você pode redistribuí-lo e/ou modificá-lo sob os
+termos da **Licença Pública Geral GNU**, versão 3 ou (a seu critério) qualquer
+versão posterior. Ele é distribuído na esperança de ser útil, mas **sem nenhuma
+garantia**. O texto completo está em [LICENSE](LICENSE).
+
+Em resumo, sem valor jurídico: use, estude, modifique e compartilhe à vontade;
+se distribuir uma versão modificada, distribua também o código dela.
+
+### Software de terceiros
+
+| Projeto | Licença | Como é usado |
+|---|---|---|
+| [PySide6 / Qt](https://doc.qt.io/qtforpython/) | LGPL-3.0 | Interface. Vinculado dinamicamente; o executável é gerado a partir deste código-fonte, que fica disponível aqui — o que satisfaz o direito de relinkar. |
+| [aria2](https://aria2.github.io/) | GPL-2.0-or-later | Motor de download padrão. **Não é redistribuído**: o app baixa o binário oficial do GitHub do projeto, com sua confirmação. |
+| [TMDB](https://www.themoviedb.org/) | API, termos próprios | Capas, sinopses e notas de filmes e séries. |
+| [SteamGridDB](https://www.steamgriddb.com/) | API, termos próprios | Capas de jogos. |
+
+> Este produto usa a API do TMDB, mas **não é endossado nem certificado pelo
+> TMDB**. *This product uses the TMDB API but is not endorsed or certified by
+> TMDB.*
+
+## O que fica fora do repositório
 
 O `.gitignore` já mantém fora do repositório:
 
 - **`config.toml`** — suas chaves de API e os caminhos da sua máquina;
 - **`dados/`** — banco e capas baixadas;
 - **`dist/`, `build/`** — o executável;
-- **`_web_antigo/`** — a interface web anterior, guardada fora do caminho.
+- **`_web_antigo/`** — a interface web anterior, guardada fora do caminho;
+- **`config.toml.bak`** e **`aria2-rpc.txt`** — a cópia de segurança da
+  configuração (com as mesmas chaves) e o segredo do RPC do aria2.
 
 Quem clonar recebe `config.exemplo.toml`, com caminhos genéricos e chaves
 vazias — e configura tudo pelo próprio app na primeira abertura.

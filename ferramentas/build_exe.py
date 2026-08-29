@@ -88,6 +88,8 @@ def main() -> int:
         "--specpath", str(RAIZ / "build"),
         "--noconfirm",
         "--add-data", f"{RAIZ / 'recursos'}{';' if sys.platform == 'win32' else ':'}recursos",
+        # A GPL exige que a licenca acompanhe o binario distribuido.
+        "--add-data", f"{RAIZ / 'LICENSE'}{';' if sys.platform == 'win32' else ':'}.",
     ]
     for modulo in QT_FORA + OUTROS_FORA:
         comando += ["--exclude-module", modulo]
