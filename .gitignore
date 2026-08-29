@@ -1,0 +1,35 @@
+# Configuracao local: contem chaves de API e caminhos da sua maquina.
+# O .bak entra junto: `config.salvar` guarda uma copia antes de gravar, e essa
+# copia tem exatamente as mesmas chaves. Ficou de fora da primeira versao deste
+# arquivo — era um vazamento esperando para acontecer.
+config.toml
+config.toml.bak
+*.bak
+
+# Binario de terceiro que o app baixa sozinho; nao e nosso para distribuir.
+aria2c.exe
+# Segredo do RPC do aria2, gerado por instalacao.
+aria2-rpc.txt
+
+# Banco, capas baixadas e qualquer cache.
+dados/
+*.db
+*.db-shm
+*.db-wal
+
+# Build do executavel.
+build/
+dist/
+*.spec
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Interface web anterior, guardada fora do caminho.
+_web_antigo/

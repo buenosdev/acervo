@@ -1,0 +1,49 @@
+# Modelo de configuracao. Copie para config.toml e ajuste.
+# O config.toml de verdade fica fora do git: ele guarda suas chaves de API.
+# Tudo isto tambem pode ser configurado dentro do app, em Configuracoes.
+
+
+[caminhos]
+# Pasta com os arquivos .torrent — o indice permanente da biblioteca.
+indice = "C:/Caminho/Para/Seus/Torrents"
+
+# Raiz da biblioteca de midia. Filmes/, Series/ e Jogos/ ficam aqui dentro.
+biblioteca = "C:/Caminho/Para/Sua/Midia"
+
+# Onde o qBittorrent baixa antes de organizar.
+staging = "C:/Caminho/Para/Sua/Midia/_baixando"
+
+# Banco e cache de posteres.
+dados = "./dados"
+
+# Pastas dentro da biblioteca que a varredura de disco deve ignorar.
+ignorar = ["_baixando"]
+
+[qbittorrent]
+url = "http://127.0.0.1:8080"
+usuario = "admin"
+senha = ""
+# Prefixo das categorias criadas pelo Acervo no qBittorrent.
+prefixo_categoria = "acervo"
+# Injetar a lista de trackers publicos ao adicionar um torrent.
+# 225 dos 249 torrents do acervo nao tem tracker nenhum e dependem so de DHT.
+injetar_trackers = true
+# Nao baixar arquivos classificados como lixo (propaganda dos sites).
+pular_lixo = true
+# Baixar em ordem, para assistir enquanto baixa.
+download_sequencial = false
+
+[metadados]
+# Chave gratuita em https://www.themoviedb.org/settings/api
+tmdb_api_key = ""
+tmdb_idioma = "pt-BR"
+# Chave gratuita em https://www.steamgriddb.com/profile/preferences/api
+steamgriddb_api_key = ""
+
+[seguranca]
+# Nao oferecer "liberar espaco" para itens com menos seeders que isto.
+minimo_seeders = 1
+# Considerar a checagem de saude vencida depois de tantos dias.
+validade_saude_dias = 14
+# Pastas cujo conteudo nunca pode ser apagado pelo app.
+pastas_protegidas = ["! NAO APAGAR"]
