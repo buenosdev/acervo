@@ -20,8 +20,8 @@ from PySide6.QtWidgets import (QButtonGroup, QComboBox, QFileDialog, QFrame,
                                QProgressBar, QPushButton, QStackedWidget,
                                QVBoxLayout, QWidget)
 
-from core import (config, consultas, db, downloads, importar, metadata,
-                  organizer, scanner)
+from core import (config, consultas, db, downloads, guardar, importar,
+                  metadata, scanner)
 from core import library as biblioteca
 
 from . import tema, widgets
@@ -56,6 +56,8 @@ class Janela(QWidget):
         self._capas_pular = 0            # avanca sobre as que o TMDB nao conhece
         self.guia = None
         self._ja_guardados: set[str] = set()
+        # id da obra -> "baixando" ou "pausado", segundo o cliente.
+        self._no_cliente: dict[int, str] = {}
 
         self.setObjectName("raiz")
         self.setWindowTitle("Acervo")
@@ -370,6 +372,8 @@ class Janela(QWidget):
     def _guia_fechou(self) -> None:
         self.guia = None
         self._ja_guardados: set[str] = set()
+        # id da obra -> "baixando" ou "pausado", segundo o cliente.
+        self._no_cliente: dict[int, str] = {}
 
     def _marcar_guia_visto(self) -> None:
         """Grava que o guia ja foi mostrado, para nao voltar a cada abertura."""
@@ -448,6 +452,7 @@ class Janela(QWidget):
         self.atualizar_downloads()
         self.checar_organizacao()
         self.buscar_capas_faltando()
+        self.guardar_o_que_esta_pronto()
 
     # --------------------------------------------------------------- capas
 
@@ -556,7 +561,11 @@ class Janela(QWidget):
             "tipo:serie": r["por_tipo"].get("serie", 0),
             "tipo:jogo": r["por_tipo"].get("jogo", 0),
             "estado:completo": r["estados"].get("completo", {}).get("n", 0),
-            "estado:parcial": r["estados"].get("parcial", {}).get("n", 0),
+            # "Baixando" conta o que o cliente tem em maos — inclusive pausado.
+            # Antes contava arquivo incompleto no disco, que e outra coisa: um
+            # download pausado com tudo baixado sumia dali.
+            "estado:parcial": (len(self._no_cliente)
+                               or r["estados"].get("parcial", {}).get("n", 0)),
             "estado:indice": r["estados"].get("indice", {}).get("n", 0),
         }.items():
             b = self.botoes_nav.get(chave)
@@ -565,7 +574,8 @@ class Janela(QWidget):
                 b.setAccessibleDescription(f"{valor} obras")
 
     def atualizar_grade(self) -> None:
-        obras = consultas.listar(self.con, **self.filtro)
+        obras = consultas.listar(self.con, **self.filtro,
+                                 no_cliente=self._no_cliente)
         self.grade.definir_obras(obras)
         n = len(obras)
         if n:
@@ -658,6 +668,7 @@ class Janela(QWidget):
             self.status(f"{r['completos']} no disco, {r['parciais']} pela metade, "
                         f"{r['orfaos']} pastas órfãs · "
                         f"{formatar_bytes(r['bytes'])} ocupados.")
+            self.guardar_o_que_esta_pronto()
 
         self.executor.rodar("conferir", trabalho, pronto,
                             lambda m: (self.btn_conferir.setEnabled(True),
@@ -688,6 +699,21 @@ class Janela(QWidget):
 
         lista = r.get("downloads") or []
         self.grade.definir_progresso({d["infohash"]: d for d in lista})
+
+        # O que o cliente esta segurando agora manda sobre o estado no disco:
+        # um torrent pausado continua sendo um download em andamento, e some da
+        # lista de "Baixando" se a gente olhar so para o arquivo incompleto.
+        antes = dict(self._no_cliente)
+        self._no_cliente = {
+            d["item_id"]: ("pausado" if d.get("pausado") else "baixando")
+            for d in lista
+            if d.get("item_id") and not d.get("terminou")
+            and (d.get("progresso") or 0) < 1
+        }
+        if self._no_cliente != antes:
+            self.atualizar_resumo()
+            self.atualizar_grade()
+
         self._guardar_concluidos(lista)
         if not r.get("disponivel") or not lista:
             self.area_downloads.hide()
@@ -702,78 +728,51 @@ class Janela(QWidget):
     # -------------------------------------------------- guardar o concluido
 
     def _guardar_concluidos(self, lista: list[dict]) -> None:
-        """Assim que um download termina, leva o arquivo para a biblioteca.
+        """Um download terminou agora: aproveita e ja guarda."""
+        novos = [d["infohash"] for d in lista
+                 if d.get("terminou") or (d.get("progresso") or 0) >= 1.0]
+        pendentes = [h for h in novos if h and h not in self._ja_guardados]
+        if not pendentes:
+            return
+        self._ja_guardados.update(pendentes)
+        self.guardar_o_que_esta_pronto()
 
-        Antes o arquivo ficava na pasta de download e so saia de la se a pessoa
-        abrisse "Ver e organizar" e confirmasse. Terminar de baixar e o momento
-        obvio para arrumar: e o unico em que se sabe, sem procurar, o que acabou
-        de chegar.
+    def guardar_o_que_esta_pronto(self) -> None:
+        """Leva para a biblioteca tudo que ja terminou e ficou no `_baixando`.
+
+        Pergunta "o que esta pronto agora?" em vez de reagir ao instante em que
+        um download termina. O evento e facil de perder — o download acaba com o
+        app fechado, ou o cliente ja esqueceu do torrent na proxima abertura — e
+        ai o arquivo fica parado na pasta de download para sempre. Esta pergunta
+        pode ser feita a qualquer hora e sempre responde certo.
         """
         if not (self.cfg.bruto.get("caminhos") or {}).get("organizar_ao_concluir",
                                                           True):
             return
-        novos = [d["infohash"] for d in lista
-                 if d.get("terminou") or (d.get("progresso") or 0) >= 1.0]
-        pendentes = [h for h in novos if h and h not in self._ja_guardados]
-        if not pendentes or self.executor.rodando("guardar"):
+        if self.executor.rodando("guardar"):
             return
-        self._ja_guardados.update(pendentes)
-
         cfg = self.cfg
-        alvos = list(pendentes)
 
         def trabalho():
             con = db.conectar(cfg.banco)
             try:
-                # Conferir primeiro: o arquivo acabou de aparecer no disco e o
-                # indice ainda nao sabe onde ele esta.
+                # Conferir antes: o arquivo pode ter acabado de chegar, e a
+                # tabela `disco` ainda nao saber dele.
                 seg = cfg.bruto.get("seguranca", {}) or {}
                 biblioteca.reconciliar(con, Path(cfg.biblioteca),
-                                       seg.get("ignorar", []) or [],
-                                       seg.get("protegidas", []) or [],
+                                       cfg.ignorar,
+                                       seg.get("pastas_protegidas", []) or [],
                                        extras=[Path(cfg.staging)])
-                feitos, nomes = 0, []
-                for infohash in alvos:
-                    linha = con.execute(
-                        "SELECT t.caminho, COALESCE(NULLIF(i.titulo_corrigido,''),"
-                        " i.titulo) titulo FROM torrents t "
-                        "JOIN itens i ON i.id = t.item_id "
-                        "JOIN disco d ON d.caminho_torrent = t.caminho "
-                        "WHERE t.infohash = ? AND d.estado = 'completo'",
-                        (infohash,)).fetchone()
-                    if not linha:
-                        continue
-                    plano = organizer.planejar(con, Path(cfg.biblioteca),
-                                               linha["caminho"])
-                    uteis = [m for m in plano.movimentos
-                             if Path(m.de) != Path(m.para)]
-                    if not uteis:
-                        continue
-                    plano.movimentos = uteis
-                    relatos = organizer.executar(plano, simular=False)
-                    movidos = sum(1 for x in relatos
-                                  if not x.startswith(("PULADO", "FALHOU")))
-                    if movidos:
-                        feitos += movidos
-                        nomes.append(linha["titulo"])
-                if feitos:
-                    biblioteca.reconciliar(con, Path(cfg.biblioteca),
-                                           seg.get("ignorar", []) or [],
-                                           seg.get("protegidas", []) or [],
-                                           extras=[Path(cfg.staging)])
-                return feitos, nomes
+                return guardar.guardar(con, cfg)
             finally:
                 con.close()
 
-        def pronto(resultado):
-            if not vivo(self):
+        def pronto(r):
+            if not vivo(self) or not r.movidos:
                 return
-            feitos, nomes = resultado
-            if not feitos:
-                return
-            quais = ", ".join(nomes[:2]) + ("…" if len(nomes) > 2 else "")
+            quais = ", ".join(r.obras[:2]) + ("…" if len(r.obras) > 2 else "")
             self.status(f"{quais} guardado na biblioteca "
-                        f"({feitos} arquivo(s) movidos).")
+                        f"({r.movidos} arquivo(s) movidos).")
             self.recarregar_tudo()
 
         self.executor.rodar("guardar", trabalho, pronto, lambda _: None)

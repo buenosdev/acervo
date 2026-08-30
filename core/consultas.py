@@ -55,12 +55,30 @@ ORDENS = {
 
 
 def listar(con: sqlite3.Connection, tipo: str = "", estado: str = "",
-           busca: str = "", ordem: str = "titulo") -> list[dict]:
+           busca: str = "", ordem: str = "titulo",
+           no_cliente: dict[int, str] | None = None) -> list[dict]:
+    """Lista as obras do catalogo.
+
+    `no_cliente` mapeia id da obra para "baixando" ou "pausado" segundo o
+    cliente de torrent. Ele tem a ultima palavra sobre o estado: um torrent
+    pausado no meio do caminho continua sendo um download em andamento, mesmo
+    que no disco ele seja apenas um arquivo incompleto — e um pausado com tudo
+    baixado nao devia sumir para "No disco" enquanto o cliente ainda o segura.
+    """
     linhas = [_linha(l) for l in con.execute(SQL_ITENS)]
+    for x in linhas:
+        vindo = (no_cliente or {}).get(x["id"])
+        if vindo:
+            x["estado"] = vindo
     if tipo:
         linhas = [x for x in linhas if x["tipo"] == tipo]
     if estado:
-        linhas = [x for x in linhas if x["estado"] == estado]
+        # "Baixando" na barra lateral abrange os tres jeitos de estar no meio do
+        # caminho: baixando agora, pausado no cliente, ou um arquivo incompleto
+        # no disco de um download que ninguem esta mais segurando.
+        alvos = ({"parcial", "baixando", "pausado"} if estado == "parcial"
+                 else {estado})
+        linhas = [x for x in linhas if x["estado"] in alvos]
     if busca.strip():
         alvo = chave_busca(busca)
         linhas = [x for x in linhas if alvo in chave_busca(x["titulo"])]

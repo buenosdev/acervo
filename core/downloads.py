@@ -289,16 +289,20 @@ def progresso(con: sqlite3.Connection, cfg) -> dict:
     for tipo in ("filme", "serie", "jogo"):
         for p in q.listar(categoria=f"{prefixo}-{tipo}"):
             linha = con.execute(
-                "SELECT COALESCE(NULLIF(i.titulo_corrigido,''), i.titulo) titulo "
+                "SELECT i.id, COALESCE(NULLIF(i.titulo_corrigido,''), i.titulo) titulo "
                 "FROM torrents t JOIN itens i ON i.id = t.item_id "
                 "WHERE t.infohash = ? LIMIT 1", (p.infohash,)
             ).fetchone()
             vistos[p.infohash] = {
                 "infohash": p.infohash,
+                # A tela precisa saber de qual obra do catalogo isto e, para o
+                # estado do cliente valer mais que o estado no disco.
+                "item_id": linha["id"] if linha else None,
                 "titulo": (linha["titulo"] if linha else None) or p.nome,
                 "nome": p.nome,
                 "tipo": tipo,
                 "estado": p.estado,
+                "pausado": p.estado == "pausado",
                 "terminou": p.terminou,
                 "progresso": round(p.progresso, 4),
                 "baixado": p.baixado,

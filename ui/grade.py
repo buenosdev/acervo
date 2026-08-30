@@ -367,7 +367,12 @@ class DelegateCartao(QStyledItemDelegate):
         # Baixando ganha destaque proprio, como na referencia.
         dados = self.progresso.get(obra.get("infohash_ativo") or "")
         if dados and not dados.get("terminou"):
-            chave, rotulo = "azul", "BAIXANDO"
+            # Pausado nao e o mesmo que baixando: dizer "BAIXANDO" numa barra
+            # que nao anda e informacao errada.
+            if dados.get("pausado"):
+                chave, rotulo = "ambar", "PAUSADO"
+            else:
+                chave, rotulo = "azul", "BAIXANDO"
         largura = self.fm_selo_forte.horizontalAdvance(rotulo) + self.m[21]
         self._pilula(p, QColor(getattr(self.paleta, chave)), rotulo,
                      self.f_selo_forte, area.x() + self.m[7],
@@ -411,6 +416,7 @@ class DelegateCartao(QStyledItemDelegate):
         dados = self.progresso.get(obra.get("infohash_ativo") or "")
         if not dados or dados.get("terminou"):
             return
+        parado = bool(dados.get("pausado"))
         pct = dados["progresso"]
         altura = self.m[30]
         y = area.bottom() - altura
@@ -431,7 +437,8 @@ class DelegateCartao(QStyledItemDelegate):
                        area.width() - margem * 2, self.m[3])
         p.fillRect(trilho, QColor(255, 255, 255, 45))
         p.fillRect(QRect(trilho.x(), trilho.y(), int(trilho.width() * pct),
-                         trilho.height()), QColor(self.paleta.azul))
+                         trilho.height()),
+                   QColor(self.paleta.ambar if parado else self.paleta.azul))
 
     def _cadeado(self, p: QPainter, area: QRect) -> None:
         fonte = self.f_cadeado

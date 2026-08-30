@@ -79,6 +79,8 @@ ESCALAS = {"normal": 1.0, "grande": 1.15, "maior": 1.32}
 
 CORES_ESTADO = {
     "completo": ("verde", "NO DISCO"),
+    "baixando": ("azul", "BAIXANDO"),
+    "pausado": ("ambar", "PAUSADO"),
     "parcial": ("azul", "METADE"),
     "indice": ("tenue", "ÍNDICE"),
     "orfao": ("ambar", "ÓRFÃO"),
