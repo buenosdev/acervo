@@ -243,8 +243,35 @@ def retomar(cfg, infohash: str) -> dict:
     return _agir(cfg, infohash, "retomar")
 
 
-def remover(cfg, infohash: str, apagar_arquivos: bool = False) -> dict:
-    return _agir(cfg, infohash, "remover", apagar_arquivos=apagar_arquivos)
+def remover(cfg, infohash: str, apagar_arquivos: bool = False,
+            con: sqlite3.Connection | None = None) -> dict:
+    """Tira o torrent do cliente; com `apagar_arquivos`, apaga a midia tambem.
+
+    Pedir ao cliente para apagar nao basta depois que o Acervo organizou: o
+    arquivo saiu da pasta que o cliente conhece, entao ele apaga o que sobrou
+    ali — nada — e o filme continua ocupando disco. Por isso o app tambem apaga
+    pelo caminho que ele proprio registrou.
+    """
+    r = _agir(cfg, infohash, "remover", apagar_arquivos=apagar_arquivos)
+    if not apagar_arquivos or con is None:
+        return r
+
+    linha = con.execute(
+        "SELECT t.caminho FROM torrents t WHERE t.infohash = ? LIMIT 1",
+        (infohash,)).fetchone()
+    if linha:
+        from . import espaco
+        # Passa por `espaco.liberar` de proposito: e la que moram as duas
+        # travas — nao apagar fora da biblioteca, e nao apagar o que ninguem
+        # mais semeia. Furar isso por um atalho contradiria a promessa do app,
+        # entao quando a trava age o app diz por que, e o arquivo fica.
+        apagou = espaco.liberar(con, cfg, linha["caminho"], confirmar=True)
+        if apagou.get("ok"):
+            r["bytes_liberados"] = apagou.get("bytes_liberados", 0)
+        elif r.get("ok"):
+            r["aviso"] = ("o torrent saiu do cliente, mas o arquivo ficou: "
+                          + (apagou.get("erro") or "recusado"))
+    return r
 
 
 def detalhes_do_torrent(cfg, infohash: str) -> dict:

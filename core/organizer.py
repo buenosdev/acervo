@@ -17,6 +17,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import library
 from .release import FILME, JOGO, SERIE
 
 # Caracteres que o Windows nao aceita em nome de arquivo.
@@ -91,55 +92,6 @@ def caminho_final(raiz: Path, tipo: str, titulo: str, ano: int | None,
                               qualidade, idioma, extensao)
 
 
-def _mapear_origem(origem: Path, arquivos: list) -> dict:
-    """Onde cada arquivo do torrent esta agora, de verdade.
-
-    Nao da para confiar no nome que consta no .torrent: depois de uma primeira
-    organizacao o arquivo ja se chama "Mr Robot - S01E01.mkv", e nao mais
-    "Mr.Robot.S01E01.720p.WEB-DL...mkv". Enquanto o plano era montado com o nome
-    antigo, todo movimento saia como "PULADO (sumiu)" — o aviso de "5 obras fora
-    do padrao" nunca ia embora e o botao Organizar parecia nao fazer nada.
-
-    Casa primeiro por nome; o que sobrar, por tamanho em bytes, que renomear nao
-    muda.
-    """
-    from .library import normalizar
-
-    if origem.is_file():
-        return {arquivos[0]["caminho"]: origem} if arquivos else {}
-
-    por_nome: dict[str, Path] = {}
-    por_tamanho: dict[int, list[Path]] = {}
-    try:
-        for f in origem.rglob("*"):
-            if not f.is_file():
-                continue
-            try:
-                tamanho = f.stat().st_size
-            except OSError:
-                continue
-            por_nome.setdefault(normalizar(f.name), f)
-            por_tamanho.setdefault(tamanho, []).append(f)
-    except (PermissionError, OSError):
-        return {}
-
-    saida: dict = {}
-    usados: set = set()
-    for a in arquivos:                      # 1a volta: nome igual
-        alvo = por_nome.get(normalizar(a["caminho"].rsplit("/", 1)[-1]))
-        if alvo is not None and alvo not in usados:
-            saida[a["caminho"]] = alvo
-            usados.add(alvo)
-    for a in arquivos:                      # 2a volta: tamanho unico
-        if a["caminho"] in saida:
-            continue
-        iguais = [f for f in por_tamanho.get(a["tamanho"], []) if f not in usados]
-        if len(iguais) == 1:
-            saida[a["caminho"]] = iguais[0]
-            usados.add(iguais[0])
-    return saida
-
-
 def planejar(con: sqlite3.Connection, raiz_biblioteca: Path,
              caminho_torrent: str) -> Plano:
     """Monta o plano de renomeacao de um download, sem executar nada."""
@@ -179,7 +131,7 @@ def planejar(con: sqlite3.Connection, raiz_biblioteca: Path,
     # Ordena os episodios pelo nome para casar com a numeracao do release.
     midias = [a for a in arquivos if a["tipo"] == "midia"]
     midias.sort(key=lambda a: a["caminho"])
-    no_disco = _mapear_origem(origem, midias)
+    no_disco = library.mapear_arquivos(origem, midias)
 
     for i, a in enumerate(midias):
         nome_origem = a["caminho"].rsplit("/", 1)[-1]

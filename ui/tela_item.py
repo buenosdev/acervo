@@ -27,7 +27,8 @@ from PySide6.QtWidgets import (QDialog, QFileDialog, QFrame, QGridLayout,
                                QProgressBar, QPushButton, QScrollArea, QSizePolicy,
                                QVBoxLayout, QWidget)
 
-from core import capas, consultas, db, downloads, espaco, health, metadata
+from core import (capas, consultas, db, downloads, espaco, health, library,
+                  metadata)
 
 from . import tema, widgets
 from .tarefas import vivo
@@ -530,6 +531,7 @@ class TelaItem(QScrollArea):
                 for n, a in zip(numeros, midias):
                     saida.append({"temporada": r["temporada"], "episodio": n,
                                   "nome": a["caminho"].rsplit("/", 1)[-1],
+                                  "caminho": a["caminho"],
                                   "tamanho": a["tamanho"], "release": r})
             elif numeros:
                 for n in numeros:
@@ -757,17 +759,46 @@ class TelaItem(QScrollArea):
 
     # --------------------------------------------------------------- acoes
 
-    def _caminho_de_midia(self, t: dict, so_video: bool = True) -> Path | None:
-        base = Path(t.get("caminho_local") or "")
+    def _no_disco(self, release: dict, arquivo: dict | None = None) -> Path | None:
+        """Onde este arquivo esta agora, mesmo tendo sido renomeado.
+
+        Procurar pelo nome que consta no .torrent falha assim que a organizacao
+        roda: o episodio passa a se chamar "Serie - S01E01.mkv" e o nome antigo
+        nao existe mais em lugar nenhum. `library.mapear_arquivos` casa por nome
+        e, quando o nome mudou, por tamanho em bytes — que renomear nao altera.
+        """
+        base = Path(release.get("caminho_local") or "")
         if not base.exists():
             return None
         if base.is_file():
             return base
-        candidatos = [a for a in t["arquivos"] if a["tipo"] == "midia"]
-        for a in sorted(candidatos, key=lambda x: -x["tamanho"]):
-            nome = a["caminho"].rsplit("/", 1)[-1]
-            for achado in base.rglob(nome):
+
+        midias = [a for a in release.get("arquivos") or [] if a["tipo"] == "midia"]
+        mapa = library.mapear_arquivos(base, midias)
+        if arquivo is not None:
+            chave = arquivo.get("caminho")
+            achado = mapa.get(chave) if chave else None
+            if achado is not None:
                 return achado
+            # Sem o caminho do indice, tenta so pelo tamanho.
+            tamanho = arquivo.get("tamanho")
+            iguais = [c for c in mapa.values()
+                      if tamanho and c.stat().st_size == tamanho]
+            return iguais[0] if len(iguais) == 1 else None
+
+        for a in sorted(midias, key=lambda x: -x["tamanho"]):
+            achado = mapa.get(a["caminho"])
+            if achado is not None:
+                return achado
+        return None
+
+    def _caminho_de_midia(self, t: dict, so_video: bool = True) -> Path | None:
+        achado = self._no_disco(t)
+        if achado is not None:
+            return achado
+        base = Path(t.get("caminho_local") or "")
+        if not base.is_dir():
+            return None
         extensoes = _EXT_VIDEO if so_video else {".exe", ".msi", ".bat"}
         arquivos = [p for p in base.rglob("*") if p.suffix.lower() in extensoes]
         return max(arquivos, key=lambda p: p.stat().st_size) if arquivos else None
@@ -784,14 +815,13 @@ class TelaItem(QScrollArea):
         self._abrir_no_sistema(alvo)
 
     def _reproduzir_arquivo(self, e: dict) -> None:
-        base = Path(e["release"].get("caminho_local") or "")
-        if base.is_file():
-            self._abrir_no_sistema(base)
-            return
-        for achado in base.rglob(e["nome"]):
+        achado = self._no_disco(e["release"], e)
+        if achado is not None:
             self._abrir_no_sistema(achado)
             return
-        self.retorno_ficha.mostrar("erro", f"Não achei {e['nome']} no disco.")
+        self.retorno_ficha.mostrar(
+            "erro", f"Não achei {_limpo(e['nome'])} no disco.",
+            "Use “Conferir disco” para o app reencontrar os arquivos.")
 
     def _abrir_no_sistema(self, caminho: Path) -> None:
         try:
@@ -865,7 +895,7 @@ class TelaItem(QScrollArea):
         caixa = QMessageBox(self)
         caixa.setWindowTitle("Remover torrent")
         caixa.setIcon(QMessageBox.Question)
-        caixa.setText(f"Remover “{t['nome']}” do qBittorrent?")
+        caixa.setText(f"Remover “{_limpo(t['nome'])}” do cliente de torrent?")
         caixa.setInformativeText(
             "O arquivo .torrent continua no índice — a obra segue no catálogo.")
         b_so = caixa.addButton("Remover, manter arquivos", QMessageBox.AcceptRole)
@@ -880,15 +910,30 @@ class TelaItem(QScrollArea):
         apagar = clicado is b_tudo
 
         def pronto(r):
-            if r.get("ok"):
-                self.retorno_ficha.mostrar("ok", "Removido do qBittorrent.")
-                self.mudou.emit()
-            else:
+            if not r.get("ok"):
                 self.retorno_ficha.mostrar("erro", r.get("erro", "falhou"))
+                return
+            livres = r.get("bytes_liberados") or 0
+            if r.get("aviso"):
+                self.retorno_ficha.mostrar("aviso", "Removido do cliente.",
+                                           r["aviso"])
+            elif livres:
+                self.retorno_ficha.mostrar(
+                    "ok", "Removido e apagado.",
+                    f"{formatar_bytes(livres)} livres no disco.")
+            else:
+                self.retorno_ficha.mostrar("ok", "Removido do cliente de torrent.")
+            self.mudou.emit()
 
-        self.executor.rodar(f"remover-{infohash}",
-                            lambda: downloads.remover(cfg, infohash, apagar),
-                            pronto, lambda m: self.retorno_ficha.mostrar("erro", m))
+        def trabalho():
+            proprio = db.conectar(cfg.banco)
+            try:
+                return downloads.remover(cfg, infohash, apagar, con=proprio)
+            finally:
+                proprio.close()
+
+        self.executor.rodar(f"remover-{infohash}", trabalho, pronto,
+                            lambda m: self.retorno_ficha.mostrar("erro", m))
 
     def _arquivos_do_torrent(self, caminho_torrent: str) -> list[dict]:
         return [dict(l) for l in self.con.execute(

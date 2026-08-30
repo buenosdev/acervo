@@ -273,7 +273,8 @@ python -m ferramentas.organizar      # prévia da renomeação padrão Jellyfin
 python -m ferramentas.metadados      # busca capas e sinopses
 ```
 ```bash
-python -m testes.casos_release       # 46 testes do parser de nomes
+python -m testes.casos_release       # parser de nomes de release
+python -m testes.casos_achar         # achar o arquivo depois de renomeado
 python -m testes.casos_layout        # cartão estável em 4 tamanhos x 5 janelas
 python -m testes.casos_pintura       # orçamento de pintura da grade (1 quadro)
 python -m testes.casos_guia          # guia: cartão cabe e não cobre o alvo
