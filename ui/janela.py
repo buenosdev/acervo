@@ -450,7 +450,7 @@ class Janela(QWidget):
                 self.restoreGeometry(self._geometria_antes)
 
     def abrir_player(self, caminho, titulo: str = "", fila=None,
-                     indice: int = 0) -> bool:
+                     indice: int = 0, retomar: float | None = None) -> bool:
         """Abre o video na pagina do player. False se coube ao sistema abrir.
 
         `fila` sao os episodios da serie, para o player oferecer proximo e
@@ -460,7 +460,8 @@ class Janela(QWidget):
         self.rot_titulo.setText(titulo or "Reproduzindo")
         self.ir_para(PAGINA_PLAYER)
         self._mostrar_moldura(False)
-        if self.tela_player.tocar(caminho, titulo, fila=fila, indice=indice):
+        if self.tela_player.tocar(caminho, titulo, fila=fila, indice=indice,
+                                  retomar=retomar):
             return True
         # Sem motor embutido: o proprio `tocar` ja mandou para o sistema.
         self.voltar()

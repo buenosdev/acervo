@@ -305,6 +305,9 @@ class TelaPlayer(QWidget):
         self.b_tocar = self._botao("pausar", "Pausar ou continuar (Espaço)",
                                    self.alternar, ctl, largura=52)
         self.b_proximo = self._botao("proximo", "Próximo episódio", self.proximo, ctl)
+        self.b_recomecar = self._botao(
+            "recomecar", "Reiniciar o vídeo, mantendo o ponto (R)",
+            self.reiniciar, ctl)
         self.b_mudo = self._botao("som", "Sem som (M)", self._alternar_mudo, ctl)
 
         self.volume = QSlider(Qt.Horizontal)
@@ -347,6 +350,7 @@ class TelaPlayer(QWidget):
                 ("Up", lambda: self.volume.setValue(self.volume.value() + 5)),
                 ("Down", lambda: self.volume.setValue(self.volume.value() - 5)),
                 ("M", self._alternar_mudo),
+                ("R", self.reiniciar),
                 ("Ctrl+Right", self.proximo),
                 ("Ctrl+Left", self.anterior),
                 ("F", self.alternar_tela_cheia),
@@ -372,7 +376,7 @@ class TelaPlayer(QWidget):
     # -------------------------------------------------------------- tocar
 
     def tocar(self, caminho: Path, titulo: str = "", fila: list | None = None,
-              indice: int = 0) -> bool:
+              indice: int = 0, retomar: float | None = None) -> bool:
         """Abre o arquivo. False quando o motor escolhido nao e embutido."""
         self.caminho, self.titulo = Path(caminho), titulo
         self.fila = list(fila or [])
@@ -409,15 +413,18 @@ class TelaPlayer(QWidget):
         self.vigia.start()
         self._acordar()
 
-        retomar = posicao_guardada(self.con, Path(caminho))
-        if retomar > MINIMO_PARA_GUARDAR:
-            QTimer.singleShot(700, lambda: self._retomar(retomar))
+        ponto = retomar if retomar is not None else posicao_guardada(
+            self.con, Path(caminho))
+        if ponto and ponto > 1:
+            QTimer.singleShot(700, lambda: self._retomar(ponto,
+                                                         avisar=retomar is None))
         return True
 
-    def _retomar(self, segundos: float) -> None:
+    def _retomar(self, segundos: float, avisar: bool = True) -> None:
         if self.motor:
             self.motor.ir_para(segundos)
-            self._avisar(f"Retomando de {_tempo(segundos)}.")
+            if avisar:
+                self._avisar(f"Retomando de {_tempo(segundos)}.")
 
     def _avisar(self, texto: str, segundos: int = 6) -> None:
         self.rot_aviso.setText(texto)
@@ -456,6 +463,35 @@ class TelaPlayer(QWidget):
 
     def proximo(self) -> None:
         self._ir_para_episodio(self.indice + 1)
+
+    def reiniciar(self) -> None:
+        """Recarrega o video no ponto em que estava.
+
+        Decodificador as vezes trava — quadro congelado, som some, barra para de
+        andar — e nao ha o que fazer de dentro: o motor precisa reabrir o
+        arquivo. Isto faz exatamente isso, e volta para onde voce estava, para
+        travar nao custar procurar a cena de novo.
+        """
+        if not self.motor or not self.caminho:
+            return
+        ponto = self.motor.posicao()
+        audio, legenda = self.motor.audio_atual(), self.motor.legenda_atual()
+        self.motor.encerrar()
+        self.motor = None
+
+        if not self.tocar(self.caminho, self.titulo, fila=self.fila,
+                          indice=self.indice, retomar=ponto):
+            return
+        # Devolve as faixas escolhidas; reabrir volta ao padrao do arquivo.
+        def restaurar():
+            if not self.motor:
+                return
+            if audio > 0:
+                self.motor.definir_audio(audio)
+            if legenda is not None:
+                self.motor.definir_legenda(legenda)
+        QTimer.singleShot(1200, restaurar)
+        self._avisar(f"Reiniciado em {_tempo(ponto)}.")
 
     def _pular(self, segundos: float) -> None:
         if self.motor:

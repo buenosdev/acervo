@@ -201,37 +201,50 @@ class DelegateCartao(QStyledItemDelegate):
         estilo = self.estilo_hover
 
         if estilo == "revelar":
-            # Uma faixa sobe sobre o pe da capa com o que ajuda a decidir. Fica
-            # dentro do cartao: a grade nao se mexe e nada e coberto.
-            alto = self.m[30] + self.m[14]
+            # Inspirado no cartao de filme do jsulpis: a ficha sobe sobre um
+            # gradiente na base da arte, no lugar de abrir painel por fora.
+            # Aqui tudo cabe dentro da celula, entao a grade nao se mexe e
+            # nenhum vizinho e coberto.
+            alto = self.m[30] + self.m[20]
             faixa = QRect(area.x() + 1, area.y() + int(self.altura_capa) - alto,
                           area.width() - 2, alto)
             p.save()
-            caminho = QPainterPath()
-            caminho.addRoundedRect(QRectF(area.adjusted(1, 1, -1, -1)), 6, 6)
-            p.setClipPath(caminho)
+            recorte = QPainterPath()
+            recorte.addRoundedRect(QRectF(area.adjusted(1, 1, -1, -1)), 6, 6)
+            p.setClipPath(recorte)
+
             grad = QLinearGradient(0, faixa.top(), 0, faixa.bottom())
-            grad.setColorAt(0, QColor(6, 6, 10, 0))
-            grad.setColorAt(0.45, QColor(6, 6, 10, 225))
-            grad.setColorAt(1, QColor(6, 6, 10, 245))
+            grad.setColorAt(0, QColor(4, 4, 8, 0))
+            grad.setColorAt(0.40, QColor(4, 4, 8, 210))
+            grad.setColorAt(1, QColor(4, 4, 8, 248))
             p.fillRect(faixa, grad)
 
-            no_disco = obra.get("estado") == "completo"
-            p.setFont(self.f_selo_forte)
-            p.setPen(QColor(pal.forte))
-            acao = ("JOGAR" if obra.get("tipo") == "jogo" else "REPRODUZIR")                 if no_disco else "BAIXAR"
-            p.drawText(faixa.x() + self.m[9],
-                       faixa.bottom() - self.m[16], acao)
+            x = faixa.x() + self.m[9]
+            base = faixa.bottom() - self.m[9]
 
-            detalhe = " · ".join(x for x in (
+            # Estrelas: leem-se de relance, o numero exige atencao.
+            nota = obra.get("nota") or 0
+            if nota:
+                self._estrelas(p, x, base - self.m[16], nota)
+                p.setFont(self.f_selo)
+                p.setPen(QColor(pal.fraco))
+                p.drawText(x + self.m[9] * 6 + self.m[5], base - self.m[11],
+                           f"{nota:.1f}")
+
+            detalhe = "  ·  ".join(x for x in (
                 str(obra.get("ano") or ""),
                 f"{obra['temporadas']} temp." if obra.get("temporadas") else "",
-                f"nota {obra['nota']:.1f}" if obra.get("nota") else "") if x)
+                (obra.get("qualidades") or [""])[-1]) if x)
             if detalhe:
                 p.setFont(self.f_selo)
                 p.setPen(QColor(pal.fraco))
-                p.drawText(faixa.x() + self.m[9], faixa.bottom() - self.m[5],
-                           detalhe)
+                p.drawText(x, base, detalhe)
+
+            no_disco = obra.get("estado") == "completo"
+            acao = ("JOGAR" if obra.get("tipo") == "jogo" else "REPRODUZIR")                 if no_disco else "BAIXAR"
+            p.setFont(self.f_selo_forte)
+            p.setPen(QColor(pal.azul if no_disco else pal.forte))
+            p.drawText(x, base - self.m[30], acao)
             p.restore()
 
         # A borda vem em todos os estilos: e a confirmacao de "e este aqui".
@@ -243,6 +256,29 @@ class DelegateCartao(QStyledItemDelegate):
                       2 if focado else 1))
         p.setBrush(Qt.NoBrush)
         p.drawPath(caminho)
+
+    def _estrelas(self, p: QPainter, x: int, y: int, nota: float) -> None:
+        """Cinco estrelas com a nota do TMDB, que vai de 0 a 10."""
+        cheias = max(0.0, min(5.0, nota / 2.0))
+        lado = self.m[9]
+        for i in range(5):
+            cheia = cheias - i
+            cor = QColor(self.paleta.ambar if cheia >= 0.5
+                         else self.paleta.campo_bd)
+            self._estrela(p, x + i * (lado + self.m[2]), y, lado * 0.5, cor)
+
+    @staticmethod
+    def _estrela(p: QPainter, cx: float, cy: float, r: float, cor: QColor) -> None:
+        import math
+
+        caminho = QPainterPath()
+        for i in range(10):
+            raio = r if i % 2 == 0 else r * 0.45
+            angulo = -math.pi / 2 + i * math.pi / 5
+            ponto = (cx + raio * math.cos(angulo), cy + raio * math.sin(angulo))
+            caminho.moveTo(*ponto) if i == 0 else caminho.lineTo(*ponto)
+        caminho.closeSubpath()
+        p.fillPath(caminho, cor)
 
     def _moldura(self, p: QPainter, area: QRect, destacado: bool,
                  focado: bool, raio: int = 6) -> QPainterPath:

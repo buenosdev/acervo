@@ -309,6 +309,15 @@ def icone_player(nome: str, cor: str, lado: int = 22) -> QIcon:
             caminho.lineTo(base, 18 * u)
             caminho.closeSubpath()
             p.fillPath(caminho, c)
+    elif nome == "recomecar":
+        # Seta circular: comeca de novo sem sair do lugar.
+        p.drawArc(QRectF(5 * u, 5 * u, 14 * u, 14 * u), 40 * 16, 280 * 16)
+        seta = QPainterPath()
+        seta.moveTo(17.5 * u, 3.5 * u)
+        seta.lineTo(19.5 * u, 9 * u)
+        seta.lineTo(13.8 * u, 8 * u)
+        seta.closeSubpath()
+        p.fillPath(seta, c)
     elif nome == "baixar":
         p.drawLine(12 * u, 4 * u, 12 * u, 16 * u)
         p.drawLine(12 * u, 16 * u, 7 * u, 11 * u)

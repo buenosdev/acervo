@@ -874,12 +874,22 @@ class TelaItem(QScrollArea):
     def _abrir_no_sistema(self, caminho: Path, titulo: str = "",
                           fila: list | None = None, indice: int = 0) -> None:
         """Reproduz onde a pessoa escolher: aqui dentro ou no programa do Windows."""
-        from .escolher_player import AQUI, perguntar
+        from .escolher_player import AQUI, onde_parou, perguntar
 
         rotulo = titulo or self.titulo
         escolha, lembrar = perguntar(self.cfg, rotulo, self.paleta, self.escala, self)
         if escolha is None:
             return                              # cancelou
+
+        # Onde parou vem depois de onde assistir: so faz sentido perguntar do
+        # ponto se ja se sabe que vai tocar, e o player do sistema nao aceita
+        # ponto de partida mesmo.
+        retomar = 0.0
+        if escolha == AQUI:
+            retomar = onde_parou(self.con, caminho, rotulo, self.paleta,
+                                 self.escala, self)
+            if retomar is None:
+                return                          # desistiu
 
         if lembrar:
             from core import ajustes
@@ -890,7 +900,8 @@ class TelaItem(QScrollArea):
         janela = self.window()
         if escolha == AQUI and hasattr(janela, "abrir_player"):
             try:
-                if janela.abrir_player(caminho, rotulo, fila=fila, indice=indice):
+                if janela.abrir_player(caminho, rotulo, fila=fila, indice=indice,
+                                       retomar=retomar):
                     return
             except Exception as e:                     # noqa: BLE001
                 self.retorno_acao.mostrar("erro", f"Não consegui abrir: {e}")
