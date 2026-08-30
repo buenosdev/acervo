@@ -65,12 +65,45 @@ class PlayerVLC(Player):
         embutido=True, faixas=True, posicao=True,
         observacoes=["Usa os decodificadores do VLC instalado."])
 
+    # Assinatura do callback de log do libvlc.
+    _TIPO_LOG = ctypes.CFUNCTYPE(None, c_void_p, c_int, c_void_p, c_char_p, c_void_p)
+
     def __init__(self, pasta: Path | None = None):
         self.pasta = Path(pasta) if pasta else pasta_do_vlc()
         self._lib = None
         self._instancia = None
         self._player = None
         self._midia = None
+        # Fica ligado enquanto o ponteiro do callback existir; guardar numa
+        # variavel de instancia impede o coletor de lixo de recolhe-lo enquanto
+        # o VLC ainda chama.
+        self._log = None
+        self.audio_falhou = False
+
+    def _ligar_log(self) -> None:
+        """Escuta o log do VLC so para saber se a saida de audio abriu.
+
+        Nao ha API para perguntar "tem som?". Sem isto, uma faixa que o VLC nao
+        consegue abrir — acontece com certos 5.1 — resulta em filme rodando em
+        silencio absoluto, sem nada na tela explicando. Com isto, o app percebe
+        e troca de faixa.
+        """
+        def receber(_dados, nivel, _ctx, formato, _args):
+            try:
+                if nivel < 4 or not formato:
+                    return
+                texto = formato.decode("utf-8", "replace").lower()
+                if "audio output" in texto or "audio sample frequency" in texto:
+                    self.audio_falhou = True
+            except Exception:                          # noqa: BLE001
+                pass
+
+        self._log = self._TIPO_LOG(receber)
+        try:
+            self._lib.libvlc_log_set.argtypes = [c_void_p, self._TIPO_LOG, c_void_p]
+            self._lib.libvlc_log_set(self._instancia, self._log, None)
+        except Exception:                              # noqa: BLE001
+            self._log = None
 
     # ------------------------------------------------------------- carga
 
@@ -163,6 +196,8 @@ class PlayerVLC(Player):
         self._player = lib.libvlc_media_player_new_from_media(self._midia)
         if not self._player:
             raise ErroPlayer("o VLC não criou o reprodutor.")
+        self.audio_falhou = False
+        self._ligar_log()
         if janela:
             lib.libvlc_media_player_set_hwnd(self._player, c_void_p(int(janela)))
 
@@ -180,6 +215,7 @@ class PlayerVLC(Player):
         if self._instancia:
             lib.libvlc_release(self._instancia)
             self._instancia = None
+        self._log = None
 
     # --------------------------------------------------------------- tocar
 
@@ -254,6 +290,7 @@ class PlayerVLC(Player):
 
     def definir_audio(self, faixa_id: int) -> None:
         if self._player:
+            self.audio_falhou = False     # a faixa nova merece um veredito novo
             self._lib.libvlc_audio_set_track(self._player, int(faixa_id))
 
     def audio_atual(self) -> int:

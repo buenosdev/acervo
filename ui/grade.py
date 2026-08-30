@@ -452,7 +452,19 @@ class DelegateCartao(QStyledItemDelegate):
         p.fillPath(caminho, QColor(0, 0, 0, 190))
         p.setFont(fonte)
         p.setPen(QColor(self.paleta.ambar))
-        p.drawText(QRectF(x, y, largura, altura), Qt.AlignCenter, "🔒")
+        # Cadeado desenhado: o emoji vinha colorido, fora da paleta, e
+        # em alguns sistemas nem existe na fonte.
+        p.setPen(QPen(QColor(self.paleta.ambar if hasattr(self, "paleta")
+                             else "#f0ad2e"), max(1.4, altura * 0.09),
+                      Qt.SolidLine, Qt.RoundCap))
+        cx, cy = x + largura / 2, y + altura / 2
+        r = altura * 0.19
+        p.drawArc(QRectF(cx - r, cy - altura * 0.30, r * 2, r * 2),
+                  0, 180 * 16)
+        p.fillRect(QRectF(cx - r * 1.25, cy - altura * 0.06,
+                          r * 2.5, altura * 0.32),
+                   QColor(self.paleta.ambar if hasattr(self, "paleta")
+                          else "#f0ad2e"))
 
 
 def _quebrar(texto: str, fm: QFontMetrics, largura: int, maximo: int) -> list[str]:

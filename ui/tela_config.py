@@ -711,7 +711,7 @@ class TelaConfig(QWidget):
         from core import players
 
         achados = players.detectar(self.cfg)
-        linhas = [f"{'✓' if a['disponivel'] else '✗'} {a['nome']}: {a['mensagem']}"
+        linhas = [f"{'OK' if a['disponivel'] else '--'} {a['nome']}: {a['mensagem']}"
                   for a in achados]
         motor, explicacao = players.escolher(self.cfg)
         self.retorno_player.mostrar(

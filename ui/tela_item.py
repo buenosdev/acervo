@@ -3,11 +3,11 @@
 Segue as referencias: faixa com imagem de fundo, titulo grande, linha de status,
 sinopse e uma acao principal que muda conforme o caso —
 
-    filme/serie no disco .... ▶ Reproduzir
-    jogo no disco ........... ▶ Jogar
+    filme/serie no disco .... Reproduzir
+    jogo no disco ........... Jogar
     baixando ................ barra de progresso + Pausar
     pausado ................. Retomar
-    so no indice ............ ↓ Baixar
+    so no indice ............ Baixar
 
 Abaixo, duas colunas: a esquerda vira **Episódios** em serie e **Arquivos** em
 filme e jogo; a direita e a ficha tecnica com Abrir pasta, Remover torrent e o
@@ -460,7 +460,9 @@ class TelaItem(QScrollArea):
         linha.setSpacing(8)
         jogo = self.dados["item"]["tipo"] == "jogo"
 
-        b = QPushButton("▶   Jogar" if jogo else "▶   Reproduzir")
+        b = QPushButton("  Jogar" if jogo else "  Reproduzir")
+        b.setIcon(widgets.icone_player("tocar", self.paleta.contraste_botao,
+                                       tema.px(18, self.escala)))
         b.setObjectName("botaoGrande")
         b.setProperty("destaque", "true")
         b.setAccessibleName("Abrir no programa padrão do sistema")
@@ -477,7 +479,9 @@ class TelaItem(QScrollArea):
     def _acao_baixar(self, t: dict) -> QHBoxLayout:
         linha = QHBoxLayout()
         linha.setSpacing(8)
-        b = QPushButton("↓   Baixar")
+        b = QPushButton("  Baixar")
+        b.setIcon(widgets.icone_player("baixar", self.paleta.contraste_botao,
+                                       tema.px(18, self.escala)))
         b.setObjectName("botaoGrande")
         b.setProperty("destaque", "true")
         b.setAccessibleName(f"Baixar {t['nome']}")
@@ -560,7 +564,11 @@ class TelaItem(QScrollArea):
         lay.setSpacing(tema.px(12, self.escala))
 
         no_disco = e["release"]["estado"] == "completo"
-        b = QPushButton("▶" if no_disco else "○")
+        b = QPushButton()
+        b.setIcon(widgets.icone_player(
+            "tocar" if no_disco else "pendente",
+            self.paleta.forte if no_disco else self.paleta.tenue,
+            tema.px(14, self.escala)))
         b.setObjectName("botaoEpisodio")
         b.setFixedSize(tema.px(28, self.escala), tema.px(28, self.escala))
         b.setEnabled(no_disco)
@@ -596,10 +604,12 @@ class TelaItem(QScrollArea):
         tam.setObjectName("metaCartao")
         lay.addWidget(tam)
 
-        marca = QLabel("✓" if no_disco else "")
-        marca.setStyleSheet(f"color: {self.paleta.verde}; font-size: "
-                            f"{tema.px(13, self.escala)}px;")
-        marca.setFixedWidth(tema.px(16, self.escala))
+        marca = QLabel()
+        if no_disco:
+            marca.setPixmap(widgets.icone_player(
+                "conferido", self.paleta.verde,
+                tema.px(15, self.escala)).pixmap(tema.px(15, self.escala)))
+        marca.setFixedWidth(tema.px(17, self.escala))
         lay.addWidget(marca)
         return caixa
 

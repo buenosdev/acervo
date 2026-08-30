@@ -68,7 +68,8 @@ class Janela(QWidget):
         raiz = QHBoxLayout(self)
         raiz.setContentsMargins(0, 0, 0, 0)
         raiz.setSpacing(0)
-        raiz.addWidget(self._montar_lateral())
+        self.lateral = self._montar_lateral()
+        raiz.addWidget(self.lateral)
         raiz.addWidget(self._montar_centro(), 1)
 
         self._atalhos()
@@ -216,6 +217,7 @@ class Janela(QWidget):
 
     def _montar_topo(self) -> QWidget:
         topo = QWidget()
+        self.faixa_topo = topo
         topo.setObjectName("topo")
         topo.setFixedHeight(tema.px(ALTURA_TOPO, self.escala))
         lay = QHBoxLayout(topo)
@@ -356,6 +358,7 @@ class Janela(QWidget):
             self.tela_player.fechar()
             return
 
+        self._mostrar_moldura(True)
         if self.paginas.currentIndex() != PAGINA_CATALOGO:
             self.ir_para(PAGINA_CATALOGO)
 
@@ -370,11 +373,38 @@ class Janela(QWidget):
         self.rot_titulo.setText("Organizar")
         self.ir_para(PAGINA_ORGANIZAR)
 
+    def _mostrar_moldura(self, visivel: bool) -> None:
+        """A barra lateral e o topo do app. Somem enquanto o player esta aberto.
+
+        O player tem barra propria, com titulo e Voltar. Manter as duas juntas
+        deixava a mesma informacao repetida em duas alturas diferentes, e o
+        video espremido entre elas — o contrario do que se espera ao dar play.
+        """
+        self.lateral.setVisible(visivel)
+        self.faixa_topo.setVisible(visivel)
+
+    def modo_cinema(self, ligado: bool) -> None:
+        """Tela cheia de verdade: so o video na tela, mais nada.
+
+        `showFullScreen()` sozinho nao bastava — ele estica a janela, mas a
+        barra de titulo do sistema e o resto da moldura continuavam ali,
+        comendo a tela e quebrando a ilusao.
+        """
+        self._mostrar_moldura(False)
+        if ligado:
+            self._geometria_antes = self.saveGeometry()
+            self.showFullScreen()
+        else:
+            self.showNormal()
+            if getattr(self, "_geometria_antes", None):
+                self.restoreGeometry(self._geometria_antes)
+
     def abrir_player(self, caminho, titulo: str = "") -> bool:
         """Abre o video na pagina do player. False se coube ao sistema abrir."""
         self.tela_player.cfg = self.cfg
         self.rot_titulo.setText(titulo or "Reproduzindo")
         self.ir_para(PAGINA_PLAYER)
+        self._mostrar_moldura(False)
         if self.tela_player.tocar(caminho, titulo):
             return True
         # Sem motor embutido: o proprio `tocar` ja mandou para o sistema.

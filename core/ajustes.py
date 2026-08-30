@@ -362,7 +362,7 @@ def testar_auto(cfg) -> dict:
 
     achados = detectar(cfg)
     prontos = [a for a in achados if a["disponivel"]]
-    linhas = [f"{'✓' if a['disponivel'] else '✗'} {a['nome']}: {a['mensagem']}"
+    linhas = [f"{'OK' if a['disponivel'] else '--'} {a['nome']}: {a['mensagem']}"
               for a in achados]
     if prontos:
         return {"ok": True,

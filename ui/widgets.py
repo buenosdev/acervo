@@ -19,8 +19,8 @@ from pathlib import Path
 from PySide6.QtCore import (QObject, QRect, QRectF, QRunnable, QSize, Qt,
                             QThreadPool, Signal)
 from PySide6.QtGui import (QAbstractTextDocumentLayout, QColor, QFont, QFontMetrics,
-                           QImage, QImageReader, QLinearGradient, QPainter,
-                           QPainterPath, QPen, QPixmap)
+                           QIcon, QImage, QImageReader, QLinearGradient,
+                           QPainter, QPainterPath, QPen, QPixmap)
 from PySide6.QtWidgets import (QAbstractButton, QFrame, QHBoxLayout, QLabel,
                                QProgressBar, QSizePolicy, QVBoxLayout, QWidget)
 
@@ -243,6 +243,79 @@ def _guardar(chave: tuple, pm: QPixmap) -> None:
 # contador, aplicar uma capa nova nao mudaria nada na tela — que era
 # exatamente a queixa de "coloquei a capa e continua a mesma".
 _geracao_capas = 0
+
+
+def icone_player(nome: str, cor: str, lado: int = 22) -> QIcon:
+    """Icone desenhado para os controles do player.
+
+    Desenhado, e nao emoji: o emoji vira colorido demais em um sistema, ausente
+    em outro, e nunca acompanha a cor do tema. Aqui o traco segue a paleta e o
+    tamanho acompanha a escala da fonte.
+    """
+    pm = QPixmap(lado, lado)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    c = QColor(cor)
+    p.setPen(QPen(c, max(1.6, lado * 0.09), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    p.setBrush(Qt.NoBrush)
+    u = lado / 24.0                      # unidade, para desenhar numa grade de 24
+
+    if nome == "tocar":
+        caminho = QPainterPath()
+        caminho.moveTo(8 * u, 5 * u)
+        caminho.lineTo(19 * u, 12 * u)
+        caminho.lineTo(8 * u, 19 * u)
+        caminho.closeSubpath()
+        p.fillPath(caminho, c)
+    elif nome == "pausar":
+        p.fillRect(QRectF(7 * u, 5 * u, 3.4 * u, 14 * u), c)
+        p.fillRect(QRectF(13.6 * u, 5 * u, 3.4 * u, 14 * u), c)
+    elif nome in ("som", "mudo"):
+        alto = QPainterPath()
+        alto.moveTo(4 * u, 9 * u)
+        alto.lineTo(7.5 * u, 9 * u)
+        alto.lineTo(11.5 * u, 5 * u)
+        alto.lineTo(11.5 * u, 19 * u)
+        alto.lineTo(7.5 * u, 15 * u)
+        alto.lineTo(4 * u, 15 * u)
+        alto.closeSubpath()
+        p.fillPath(alto, c)
+        if nome == "som":
+            for raio in (3.5, 6.0):
+                p.drawArc(QRectF((11.5 - raio) * u, (12 - raio) * u,
+                                 raio * 2 * u, raio * 2 * u), -55 * 16, 110 * 16)
+        else:
+            p.drawLine(15 * u, 9 * u, 20 * u, 15 * u)
+            p.drawLine(20 * u, 9 * u, 15 * u, 15 * u)
+    elif nome in ("cheia", "restaurar"):
+        d = 3.0 * u if nome == "cheia" else -3.0 * u
+        for x, y, sx, sy in ((5, 5, 1, 1), (19, 5, -1, 1),
+                             (5, 19, 1, -1), (19, 19, -1, -1)):
+            bx, by = x * u, y * u
+            p.drawLine(bx, by, bx + sx * d, by)
+            p.drawLine(bx, by, bx, by + sy * d)
+    elif nome == "voltar":
+        p.drawLine(15 * u, 5 * u, 8 * u, 12 * u)
+        p.drawLine(8 * u, 12 * u, 15 * u, 19 * u)
+    elif nome == "baixar":
+        p.drawLine(12 * u, 4 * u, 12 * u, 16 * u)
+        p.drawLine(12 * u, 16 * u, 7 * u, 11 * u)
+        p.drawLine(12 * u, 16 * u, 17 * u, 11 * u)
+        p.drawLine(6 * u, 20 * u, 18 * u, 20 * u)
+    elif nome == "conferido":
+        p.drawLine(5 * u, 12.5 * u, 10 * u, 17.5 * u)
+        p.drawLine(10 * u, 17.5 * u, 19 * u, 7 * u)
+    elif nome == "pendente":
+        p.drawEllipse(QRectF(6 * u, 6 * u, 12 * u, 12 * u))
+    elif nome == "fixado":
+        # Cadeado: arco por cima, corpo cheio embaixo.
+        p.drawArc(QRectF(7.5 * u, 4 * u, 9 * u, 9 * u), 0, 180 * 16)
+        caminho = QPainterPath()
+        caminho.addRoundedRect(QRectF(6 * u, 11 * u, 12 * u, 9 * u), 2 * u, 2 * u)
+        p.fillPath(caminho, c)
+    p.end()
+    return QIcon(pm)
 
 
 def limpar_cache_capas() -> None:
@@ -521,7 +594,19 @@ class CartaoObra(QAbstractButton):
         p.fillPath(caminho, QColor(0, 0, 0, 190))
         p.setFont(fonte)
         p.setPen(QColor(pal.ambar))
-        p.drawText(QRectF(x, y, largura, altura), Qt.AlignCenter, "🔒")
+        # Cadeado desenhado: o emoji vinha colorido, fora da paleta, e
+        # em alguns sistemas nem existe na fonte.
+        p.setPen(QPen(QColor(self.paleta.ambar if hasattr(self, "paleta")
+                             else "#f0ad2e"), max(1.4, altura * 0.09),
+                      Qt.SolidLine, Qt.RoundCap))
+        cx, cy = x + largura / 2, y + altura / 2
+        r = altura * 0.19
+        p.drawArc(QRectF(cx - r, cy - altura * 0.30, r * 2, r * 2),
+                  0, 180 * 16)
+        p.fillRect(QRectF(cx - r * 1.25, cy - altura * 0.06,
+                          r * 2.5, altura * 0.32),
+                   QColor(self.paleta.ambar if hasattr(self, "paleta")
+                          else "#f0ad2e"))
 
     # Repinta no hover, senao a borda de destaque nao aparece.
     def enterEvent(self, e):              # noqa: N802

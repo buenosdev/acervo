@@ -117,3 +117,6 @@ class Player:
     def carregar_legenda(self, caminho: Path) -> bool:
         """Adiciona um .srt de fora do arquivo. False se o motor nao souber."""
         return False
+
+    # Motores que sabem detectar preenchem isto; os outros deixam False.
+    audio_falhou = False
