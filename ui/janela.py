@@ -208,16 +208,8 @@ class Janela(QWidget):
         self.tela_organizar.pedir_voltar.connect(self.voltar)
         self.paginas.addWidget(self.tela_organizar)
 
-        # A previa do catalogo: uma so, reaproveitada por todos os cartoes.
-        from .previa import PreviaObra
-
-        self.previa = PreviaObra(self.cfg.posters, self.paleta, self.escala, self)
-        self.previa.abrir.connect(self.abrir_item)
-        self.previa.reproduzir.connect(self._previa_reproduzir)
-        self.previa.baixar.connect(self._previa_baixar)
-        self.grade.ligar_previa(self.previa)
         self.grade.definir_estilo_hover(
-            (self.cfg.bruto.get("aparencia") or {}).get("hover", "elevar"))
+            (self.cfg.bruto.get("aparencia") or {}).get("hover", "borda"))
         self.grade.sob_o_mouse.connect(self._obra_sob_o_mouse)
 
         self.tela_player = TelaPlayer(self.cfg, self.con, self.paleta, self.escala)
@@ -416,23 +408,6 @@ class Janela(QWidget):
         n = self.grade.modelo.rowCount()
         self.status(f"{n} {'obra' if n == 1 else 'obras'}")
 
-    def _previa_reproduzir(self, item_id: int) -> None:
-        """O botao da previa faz o mesmo que o da tela da obra.
-
-        Passa pela tela da obra de proposito: e la que mora a logica de achar o
-        arquivo no disco, montar a fila de episodios e perguntar onde assistir.
-        Duplicar isso aqui seria criar um segundo caminho para divergir do
-        primeiro.
-        """
-        self.previa.esconder()
-        self.abrir_item(item_id)
-        QTimer.singleShot(80, self.tela_item.reproduzir_principal)
-
-    def _previa_baixar(self, item_id: int) -> None:
-        self.previa.esconder()
-        self.abrir_item(item_id)
-        QTimer.singleShot(80, self.tela_item.baixar_principal)
-
     def modo_cinema(self, ligado: bool) -> None:
         """Tela cheia de verdade: so o video na tela, mais nada.
 
@@ -530,11 +505,10 @@ class Janela(QWidget):
         widgets.limpar_cache_capas()
         self.grade.aplicar_tema(self.paleta, self.escala, self.tamanho_grade, self.modo)
         self.grade.definir_estilo_hover(
-            (self.cfg.bruto.get("aparencia") or {}).get("hover", "elevar"))
+            (self.cfg.bruto.get("aparencia") or {}).get("hover", "borda"))
         self.tela_item.aplicar_tema(self.paleta, self.escala)
         self.tela_organizar.aplicar_tema(self.paleta, self.escala)
         self.tela_player.aplicar_tema(self.paleta, self.escala)
-        self.previa.aplicar_tema(self.paleta, self.escala)
         self.rot_velocidade.setStyleSheet(
             f"color: {self.paleta.azul}; font-family: {tema.fonte_mono()};")
         self.btn_grade.setIcon(widgets.icone_visao("grade", self.paleta.fraco))

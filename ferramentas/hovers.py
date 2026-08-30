@@ -24,20 +24,15 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QHBoxLayout,  # noqa: E4
 from core import config, consultas, db                   # noqa: E402
 from ui import tema                                      # noqa: E402
 from ui.grade import ESTILOS_HOVER, GradeObras           # noqa: E402
-from ui.previa import PreviaObra                         # noqa: E402
 
 EXPLICACAO = {
-    "borda": "O cartão não se mexe; só a borda acende. É o mais discreto e o "
-             "mais barato — nada é redesenhado além da moldura.",
-    "elevar": "O cartão ocupa a célula inteira ao passar o mouse e recua um "
-              "pouco quando sai. Dá a sensação de crescer sem empurrar a "
-              "grade nem cobrir os vizinhos.",
-    "revelar": "Uma faixa sobe sobre o pé da capa com a ação e a ficha curta. "
-               "Tudo dentro do cartão: nada é coberto e a grade fica parada.",
-    "rodape": "O cartão não muda nada. Quem se atualiza é uma linha no rodapé "
-              "da janela. Movimento zero na grade — o mais fácil de ignorar.",
-    "painel": "O painel grande ao lado, com imagem de fundo e sinopse. Mostra "
-              "mais, mas abre uma janela por vez e cobre parte do catálogo.",
+    "borda": "Um halo azul acende em volta do cartão e apaga quando o mouse "
+             "sai — em 170 ms, não de uma vez. Nada mais se mexe: nenhum "
+             "texto aparece, nenhum vizinho é coberto.",
+    "elevar": "O mesmo halo, e o cartão cresce dentro da própria célula "
+              "enquanto acende. Continua sem empurrar a grade.",
+    "rodape": "O mesmo halo, e a ficha da obra sob o mouse aparece numa linha "
+              "no rodapé da janela — informação sem nada piscando na grade.",
 }
 
 
@@ -85,9 +80,6 @@ class Bancada(QWidget):
         self.grade.definir_obras(consultas.listar(con))
         col.addWidget(self.grade, 1)
 
-        self.previa = PreviaObra(cfg.posters, paleta, escala, self)
-        self.grade.ligar_previa(self.previa)
-
         self.rodape = QLabel("Passe o mouse sobre uma capa.")
         self.rodape.setStyleSheet(
             f"color: {paleta.fraco}; background: {paleta.lateral};"
@@ -100,7 +92,7 @@ class Bancada(QWidget):
         self._medidor.timeout.connect(self._medir)
         self._medidor.start(900)
 
-        self.combo.setCurrentIndex(1)          # comeca no "elevar"
+        self.combo.setCurrentIndex(0)          # comeca na borda
         self._trocar()
 
     def _trocar(self) -> None:

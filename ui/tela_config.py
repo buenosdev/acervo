@@ -805,11 +805,9 @@ class TelaConfig(QWidget):
             "antes de decidir: python -m ferramentas.hovers"))
         self.grupo_hover = QButtonGroup(self)
         notas = {
-            "borda": "O mais discreto: a grade não se mexe.",
-            "elevar": "O cartão ocupa a célula inteira; sem empurrar os vizinhos.",
-            "revelar": "Uma faixa com a ação sobe no pé da capa.",
-            "rodape": "Movimento zero na grade; a informação vai para o rodapé.",
-            "painel": "Mostra mais, mas cobre parte do catálogo.",
+            "borda": "Nada se mexe: a borda acende e apaga suavemente.",
+            "elevar": "A borda acende e o cartão cresce dentro da própria célula.",
+            "rodape": "Borda suave, e a ficha da obra aparece no rodapé.",
         }
         for valor, rotulo in ESTILOS_HOVER.items():
             r = QRadioButton(rotulo)
@@ -956,7 +954,7 @@ class TelaConfig(QWidget):
                                      (self.grupo_fonte, "fonte", "normal"),
                                      (self.grupo_grade, "tamanho_grade", "medio"),
                                      (self.grupo_modo, "modo", "grade"),
-                                     (self.grupo_hover, "hover", "elevar")):
+                                     (self.grupo_hover, "hover", "borda")):
             alvo = prefs.get(chave, padrao)
             for b in grupo.buttons():
                 if b.valor == alvo:      # type: ignore[attr-defined]
@@ -966,7 +964,7 @@ class TelaConfig(QWidget):
         return next((b.valor for b in grupo.buttons() if b.isChecked()), padrao)
 
     def aparencia(self) -> dict:
-        return {"hover": self._escolhido(self.grupo_hover, "elevar"),
+        return {"hover": self._escolhido(self.grupo_hover, "borda"),
                 "tema": self._escolhido(self.grupo_tema, "escuro"),
                 "fonte": self._escolhido(self.grupo_fonte, "normal"),
                 "tamanho_grade": self._escolhido(self.grupo_grade, "medio"),

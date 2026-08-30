@@ -30,12 +30,14 @@ PAPEL_OBRA = Qt.UserRole + 1
 # Como o cartao reage ao mouse. Cada um custa coisas diferentes e incomoda de
 # jeitos diferentes; nenhum e obviamente melhor, por isso e uma escolha.
 ESTILOS_HOVER = {
-    "borda":   "Só a borda acende",
-    "elevar":  "O cartão cresce um pouco",
-    "revelar": "Aparece uma faixa com as ações",
-    "rodape":  "Uma linha discreta no rodapé",
-    "painel":  "Painel grande ao lado (estilo Netflix)",
+    "borda":  "Só a borda acende, com transição suave",
+    "elevar": "A borda acende e o cartão cresce um pouco",
+    "rodape": "Borda suave, e a ficha aparece no rodapé da janela",
 }
+# Quanto tempo a borda leva para acender e apagar. Curto o bastante para
+# acompanhar o mouse, longo o bastante para nao parecer um pisca-pisca.
+DURACAO_REALCE = 170        # ms
+PASSO_REALCE = 16           # ms entre quadros da transicao
 # Quanto o cartao encolhe no estado normal, para ter para onde crescer no
 # hover sem estourar a celula — crescer de verdade seria recortado pelo Qt.
 FOLGA_ELEVAR = 5
@@ -99,7 +101,9 @@ class DelegateCartao(QStyledItemDelegate):
         self.largura = largura
         self.modo = modo
         self.progresso: dict[str, dict] = {}     # infohash -> dados do download
-        self.estilo_hover = "elevar"
+        self.estilo_hover = "borda"
+        # linha -> intensidade do realce, entre 0 e 1.
+        self.realces: dict[int, float] = {}
         self._baixando: frozenset[str] = frozenset()
         self._cache_cartao: dict[tuple, QPixmap] = {}
         self._geracao_capas = geracao_capas()
@@ -192,93 +196,43 @@ class DelegateCartao(QStyledItemDelegate):
         if self.modo == "lista":
             self._lista(p, area, obra, destacado, focado)
         else:
-            self._grade(p, area, obra, destacado, focado)
+            self._grade(p, area, obra, destacado, focado, indice.row())
         p.restore()
 
-    def _realce(self, p: QPainter, area: QRect, obra: dict, focado: bool) -> None:
-        """O que o cartao mostra quando o mouse esta em cima."""
+    def _realce(self, p: QPainter, area: QRect, obra: dict, focado: bool,
+                forca: float = 1.0) -> None:
+        """A borda acendendo. `forca` vai de 0 a 1 ao longo da transicao.
+
+        Duas camadas: um halo largo e quase transparente por fora, e o traco
+        por dentro. O halo e o que da a impressao de luz em vez de contorno —
+        sem ele, mesmo com transicao, a borda parece um retangulo que liga e
+        desliga.
+        """
+        if forca <= 0.01 and not focado:
+            return
         pal = self.paleta
-        estilo = self.estilo_hover
+        forca = max(0.0, min(1.0, forca))
+        cor = QColor(pal.azul)
 
-        if estilo == "revelar":
-            # Inspirado no cartao de filme do jsulpis: a ficha sobe sobre um
-            # gradiente na base da arte, no lugar de abrir painel por fora.
-            # Aqui tudo cabe dentro da celula, entao a grade nao se mexe e
-            # nenhum vizinho e coberto.
-            alto = self.m[30] + self.m[20]
-            faixa = QRect(area.x() + 1, area.y() + int(self.altura_capa) - alto,
-                          area.width() - 2, alto)
-            p.save()
-            recorte = QPainterPath()
-            recorte.addRoundedRect(QRectF(area.adjusted(1, 1, -1, -1)), 6, 6)
-            p.setClipPath(recorte)
-
-            grad = QLinearGradient(0, faixa.top(), 0, faixa.bottom())
-            grad.setColorAt(0, QColor(4, 4, 8, 0))
-            grad.setColorAt(0.40, QColor(4, 4, 8, 210))
-            grad.setColorAt(1, QColor(4, 4, 8, 248))
-            p.fillRect(faixa, grad)
-
-            x = faixa.x() + self.m[9]
-            base = faixa.bottom() - self.m[9]
-
-            # Estrelas: leem-se de relance, o numero exige atencao.
-            nota = obra.get("nota") or 0
-            if nota:
-                self._estrelas(p, x, base - self.m[16], nota)
-                p.setFont(self.f_selo)
-                p.setPen(QColor(pal.fraco))
-                p.drawText(x + self.m[9] * 6 + self.m[5], base - self.m[11],
-                           f"{nota:.1f}")
-
-            detalhe = "  ·  ".join(x for x in (
-                str(obra.get("ano") or ""),
-                f"{obra['temporadas']} temp." if obra.get("temporadas") else "",
-                (obra.get("qualidades") or [""])[-1]) if x)
-            if detalhe:
-                p.setFont(self.f_selo)
-                p.setPen(QColor(pal.fraco))
-                p.drawText(x, base, detalhe)
-
-            no_disco = obra.get("estado") == "completo"
-            acao = ("JOGAR" if obra.get("tipo") == "jogo" else "REPRODUZIR")                 if no_disco else "BAIXAR"
-            p.setFont(self.f_selo_forte)
-            p.setPen(QColor(pal.azul if no_disco else pal.forte))
-            p.drawText(x, base - self.m[30], acao)
-            p.restore()
-
-        # A borda vem em todos os estilos: e a confirmacao de "e este aqui".
-        r = QRectF(area.x() + 0.5, area.y() + 0.5,
-                   area.width() - 1, area.height() - 1)
-        caminho = QPainterPath()
-        caminho.addRoundedRect(r, 6, 6)
-        p.setPen(QPen(QColor(pal.azul if focado else pal.borda_txt),
-                      2 if focado else 1))
+        p.save()
         p.setBrush(Qt.NoBrush)
-        p.drawPath(caminho)
 
-    def _estrelas(self, p: QPainter, x: int, y: int, nota: float) -> None:
-        """Cinco estrelas com a nota do TMDB, que vai de 0 a 10."""
-        cheias = max(0.0, min(5.0, nota / 2.0))
-        lado = self.m[9]
-        for i in range(5):
-            cheia = cheias - i
-            cor = QColor(self.paleta.ambar if cheia >= 0.5
-                         else self.paleta.campo_bd)
-            self._estrela(p, x + i * (lado + self.m[2]), y, lado * 0.5, cor)
+        # Halo: nasce colado na borda e se afasta um pouco enquanto acende.
+        halo = QColor(cor)
+        halo.setAlpha(int(46 * forca))
+        folga = 1.0 + 2.0 * forca
+        p.setPen(QPen(halo, 3.0 + 2.0 * forca))
+        p.drawRoundedRect(
+            QRectF(area.x() - folga, area.y() - folga,
+                   area.width() + folga * 2, area.height() + folga * 2),
+            6 + folga, 6 + folga)
 
-    @staticmethod
-    def _estrela(p: QPainter, cx: float, cy: float, r: float, cor: QColor) -> None:
-        import math
-
-        caminho = QPainterPath()
-        for i in range(10):
-            raio = r if i % 2 == 0 else r * 0.45
-            angulo = -math.pi / 2 + i * math.pi / 5
-            ponto = (cx + raio * math.cos(angulo), cy + raio * math.sin(angulo))
-            caminho.moveTo(*ponto) if i == 0 else caminho.lineTo(*ponto)
-        caminho.closeSubpath()
-        p.fillPath(caminho, cor)
+        traco = QColor(cor)
+        traco.setAlpha(int(90 + 165 * forca))
+        p.setPen(QPen(traco, 2.0 if focado else 1.0 + 0.6 * forca))
+        p.drawRoundedRect(QRectF(area.x() + 0.5, area.y() + 0.5,
+                                 area.width() - 1, area.height() - 1), 6, 6)
+        p.restore()
 
     def _moldura(self, p: QPainter, area: QRect, destacado: bool,
                  focado: bool, raio: int = 6) -> QPainterPath:
@@ -293,7 +247,7 @@ class DelegateCartao(QStyledItemDelegate):
         return caminho
 
     def _grade(self, p: QPainter, area: QRect, obra: dict,
-               destacado: bool, focado: bool) -> None:
+               destacado: bool, focado: bool, indice_linha: int = -1) -> None:
         """Cartao pronto vem do cache; so o hover e o progresso mudam.
 
         Tudo o que reage ao mouse e desenhado aqui, dentro da celula. Nada de
@@ -301,12 +255,13 @@ class DelegateCartao(QStyledItemDelegate):
         sair, e cobre o catalogo justamente quando a pessoa esta varrendo com os
         olhos.
         """
+        forca = self.realces.get(indice_linha, 1.0 if destacado else 0.0)
         cheio = area
         if self.estilo_hover == "elevar":
             # Cresce sem estourar a celula: no estado normal o cartao fica um
             # pouco menor, e o hover devolve o tamanho inteiro. Crescer para
-            # fora seria recortado pelo Qt.
-            folga = 0 if destacado else FOLGA_ELEVAR
+            # fora seria recortado pelo Qt. Com `forca`, cresce aos poucos.
+            folga = int(round(FOLGA_ELEVAR * (1.0 - forca)))
             cheio = area.adjusted(folga, folga, -folga, -folga)
 
         pm = self._cartao_estatico(obra)
@@ -315,8 +270,8 @@ class DelegateCartao(QStyledItemDelegate):
         else:
             p.drawPixmap(cheio.topLeft(), pm)
 
-        if destacado or focado:
-            self._realce(p, cheio, obra, focado)
+        if forca > 0.01 or focado:
+            self._realce(p, cheio, obra, focado, forca)
 
         dados = self.progresso.get(obra.get("infohash_ativo") or "")
         if dados and not dados.get("terminou"):
@@ -641,10 +596,10 @@ class GradeObras(QListView):
         self.setMouseTracking(True)
         self.viewport().setMouseTracking(True)
         self._sob_o_mouse = -1
-        self.previa: object | None = None
-        self._espera_previa = QTimer(self)
-        self._espera_previa.setSingleShot(True)
-        self._espera_previa.timeout.connect(self._mostrar_previa)
+        self._alvos: dict[int, float] = {}
+        self._transicao = QTimer(self)
+        self._transicao.setInterval(PASSO_REALCE)
+        self._transicao.timeout.connect(self._andar_realce)
 
         carregador.sinais.pronta.connect(self._capa_chegou)
         self._repintar = QTimer(self)
@@ -652,40 +607,61 @@ class GradeObras(QListView):
         self._repintar.setInterval(60)         # junta as que chegam em rajada
         self._repintar.timeout.connect(self._converter_e_repintar)
 
-    # --------------------------------------------------------------- previa
+    # -------------------------------------------------------------- realce
 
-    def ligar_previa(self, previa) -> None:
-        """Recebe o painel de previa, criado pela janela."""
-        self.previa = previa
+    def _realcar(self, sai: int, entra: int) -> None:
+        """Comeca a transicao: um cartao acendendo, o outro apagando.
+
+        Cada linha tem um alvo (1 para o cartao sob o mouse, 0 para os demais) e
+        caminha ate ele alguns milesimos por quadro. Sem isso a borda liga e
+        desliga de uma vez, que e o que fazia o hover parecer duro.
+        """
+        if sai >= 0:
+            self._alvos[sai] = 0.0
+            self.delegate.realces.setdefault(sai, 1.0)
+        if entra >= 0:
+            self._alvos[entra] = 1.0
+            self.delegate.realces.setdefault(entra, 0.0)
+        if self._alvos and not self._transicao.isActive():
+            self._transicao.start()
+
+    def _andar_realce(self) -> None:
+        """Um quadro da transicao. Repinta so as celulas que mudaram."""
+        passo = PASSO_REALCE / max(1, DURACAO_REALCE)
+        terminadas = []
+        for linha, alvo in list(self._alvos.items()):
+            atual = self.delegate.realces.get(linha, 0.0)
+            if atual < alvo:
+                atual = min(alvo, atual + passo)
+            else:
+                atual = max(alvo, atual - passo)
+            self.delegate.realces[linha] = atual
+            # O cache do cartao continua valendo mesmo no "elevar": o pixmap
+            # e escalado na hora de desenhar, nao regravado.
+            self.update(self.modelo.index(linha, 0))
+            if abs(atual - alvo) < 0.001:
+                self.delegate.realces[linha] = alvo
+                terminadas.append(linha)
+
+        for linha in terminadas:
+            self._alvos.pop(linha, None)
+            if self.delegate.realces.get(linha) == 0.0:
+                self.delegate.realces.pop(linha, None)
+        if not self._alvos:
+            self._transicao.stop()
+
+    # ---------------------------------------------------------- estilo
 
     def definir_estilo_hover(self, estilo: str) -> None:
         """Troca o jeito de reagir ao mouse, sem remontar a grade."""
         if estilo == self.delegate.estilo_hover:
             return
         self.delegate.estilo_hover = estilo
+        self.delegate.realces.clear()
+        self._alvos.clear()
         self.delegate._cache_cartao.clear()
-        self._esconder_previa()
         self.sob_o_mouse.emit(None)
         self.viewport().update()
-
-    def _mostrar_previa(self) -> None:
-        if (self.previa is None or self._sob_o_mouse < 0
-                or self.delegate.estilo_hover != "painel"):
-            return
-        indice = self.modelo.index(self._sob_o_mouse, 0)
-        obra = self.modelo.obra_em(indice)
-        if not obra:
-            return
-        area = self.visualRect(indice)
-        canto = self.viewport().mapToGlobal(area.topLeft())
-        from PySide6.QtCore import QRect
-
-        self.previa.mostrar_obra(obra, QRect(canto, area.size()))
-
-    def _esconder_previa(self) -> None:
-        self._espera_previa.stop()
-        if self.previa is not None:
-            self.previa.esconder()
 
     def mouseMoveEvent(self, evento) -> None:              # noqa: N802
         super().mouseMoveEvent(evento)
@@ -693,19 +669,14 @@ class GradeObras(QListView):
         linha = indice.row() if indice.isValid() else -1
         if linha == self._sob_o_mouse:
             return
-        self._sob_o_mouse = linha
-        self._esconder_previa()
-        obra = self.modelo.obra_em(indice) if linha >= 0 else None
-        self.sob_o_mouse.emit(obra)
-        if linha >= 0 and self.delegate.estilo_hover == "painel":
-            from .previa import ESPERA
-
-            self._espera_previa.start(ESPERA)
+        anterior, self._sob_o_mouse = self._sob_o_mouse, linha
+        self._realcar(anterior, linha)
+        self.sob_o_mouse.emit(self.modelo.obra_em(indice) if linha >= 0 else None)
 
     def leaveEvent(self, evento) -> None:                  # noqa: N802
         super().leaveEvent(evento)
-        self._sob_o_mouse = -1
-        self._esconder_previa()
+        anterior, self._sob_o_mouse = self._sob_o_mouse, -1
+        self._realcar(anterior, -1)
         self.sob_o_mouse.emit(None)
 
     def _capa_chegou(self, caminho: str, largura: int) -> None:
@@ -719,7 +690,6 @@ class GradeObras(QListView):
 
     def wheelEvent(self, evento) -> None:          # noqa: N802
         """Roda do mouse com deslizamento; touchpad fica com o Qt."""
-        self._esconder_previa()           # rolar com a previa aberta e confuso
         graus = evento.angleDelta().y()
         # Touchpad de precisao ja manda deslocamento em pixels e e suave por
         # natureza — animar por cima disso brigaria com o dedo do usuario.
@@ -744,7 +714,6 @@ class GradeObras(QListView):
         evento.accept()
 
     def _abrir(self, indice) -> None:
-        self._esconder_previa()
         obra = self.modelo.obra_em(indice)
         if obra:
             self.abrir.emit(obra["id"])
@@ -772,6 +741,9 @@ class GradeObras(QListView):
         self.viewport().update()
 
     def definir_obras(self, obras: list[dict]) -> None:
+        self._alvos.clear()
+        self.delegate.realces.clear()
+        self._sob_o_mouse = -1
         self.modelo.definir(obras)
         self.scrollToTop()
         self._alvo_rolagem = 0.0
