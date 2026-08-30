@@ -70,6 +70,9 @@ PADROES = {
         "fonte": "normal",
         "tamanho_grade": "medio",
         "modo": "grade",
+        # Como o cartao reage ao mouse. `python -m ferramentas.hovers` abre uma
+        # bancada para experimentar todos com o catalogo de verdade.
+        "hover": "elevar",
         # O guia so aparece sozinho uma vez. Depois disso fica em
         # Configuracoes -> Aparencia, para quem quiser rever.
         "guia_visto": False,

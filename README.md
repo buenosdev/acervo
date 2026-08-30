@@ -273,6 +273,7 @@ python -m ferramentas.organizar      # prévia da renomeação padrão Jellyfin
 python -m ferramentas.metadados      # busca capas e sinopses
 ```
 ```bash
+python -m ferramentas.hovers         # experimentar os estilos de hover
 python -m testes.casos_release       # parser de nomes de release
 python -m testes.casos_achar         # achar o arquivo depois de renomeado
 python -m testes.casos_player        # escolha do motor de vídeo e retomada

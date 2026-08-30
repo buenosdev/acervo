@@ -16,8 +16,8 @@ from pathlib import Path
 from PySide6.QtCore import (QAbstractListModel, QEasingCurve, QModelIndex,
                             QPoint, QPropertyAnimation, QRect, QRectF, QSize,
                             Qt, QTimer, Signal)
-from PySide6.QtGui import (QColor, QFont, QFontMetrics, QPainter, QPainterPath, QPen,
-                           QPixmap)
+from PySide6.QtGui import (QColor, QFont, QFontMetrics, QLinearGradient,
+                           QPainter, QPainterPath, QPen, QPixmap)
 from PySide6.QtWidgets import QListView, QStyle, QStyledItemDelegate
 
 from . import tema
@@ -26,6 +26,19 @@ from .widgets import (PROPORCAO_CAPA, ROTULO_TIPO, TAMANHOS_CARTAO, capa_pronta,
                       geracao_capas, pedir_capa)
 
 PAPEL_OBRA = Qt.UserRole + 1
+
+# Como o cartao reage ao mouse. Cada um custa coisas diferentes e incomoda de
+# jeitos diferentes; nenhum e obviamente melhor, por isso e uma escolha.
+ESTILOS_HOVER = {
+    "borda":   "Só a borda acende",
+    "elevar":  "O cartão cresce um pouco",
+    "revelar": "Aparece uma faixa com as ações",
+    "rodape":  "Uma linha discreta no rodapé",
+    "painel":  "Painel grande ao lado (estilo Netflix)",
+}
+# Quanto o cartao encolhe no estado normal, para ter para onde crescer no
+# hover sem estourar a celula — crescer de verdade seria recortado pelo Qt.
+FOLGA_ELEVAR = 5
 
 _TEXTO_ESTADO = {"completo": "no disco", "parcial": "baixado pela metade",
                  "indice": "só no índice", "orfao": "sem torrent"}
@@ -86,6 +99,7 @@ class DelegateCartao(QStyledItemDelegate):
         self.largura = largura
         self.modo = modo
         self.progresso: dict[str, dict] = {}     # infohash -> dados do download
+        self.estilo_hover = "elevar"
         self._baixando: frozenset[str] = frozenset()
         self._cache_cartao: dict[tuple, QPixmap] = {}
         self._geracao_capas = geracao_capas()
@@ -181,6 +195,55 @@ class DelegateCartao(QStyledItemDelegate):
             self._grade(p, area, obra, destacado, focado)
         p.restore()
 
+    def _realce(self, p: QPainter, area: QRect, obra: dict, focado: bool) -> None:
+        """O que o cartao mostra quando o mouse esta em cima."""
+        pal = self.paleta
+        estilo = self.estilo_hover
+
+        if estilo == "revelar":
+            # Uma faixa sobe sobre o pe da capa com o que ajuda a decidir. Fica
+            # dentro do cartao: a grade nao se mexe e nada e coberto.
+            alto = self.m[30] + self.m[14]
+            faixa = QRect(area.x() + 1, area.y() + int(self.altura_capa) - alto,
+                          area.width() - 2, alto)
+            p.save()
+            caminho = QPainterPath()
+            caminho.addRoundedRect(QRectF(area.adjusted(1, 1, -1, -1)), 6, 6)
+            p.setClipPath(caminho)
+            grad = QLinearGradient(0, faixa.top(), 0, faixa.bottom())
+            grad.setColorAt(0, QColor(6, 6, 10, 0))
+            grad.setColorAt(0.45, QColor(6, 6, 10, 225))
+            grad.setColorAt(1, QColor(6, 6, 10, 245))
+            p.fillRect(faixa, grad)
+
+            no_disco = obra.get("estado") == "completo"
+            p.setFont(self.f_selo_forte)
+            p.setPen(QColor(pal.forte))
+            acao = ("JOGAR" if obra.get("tipo") == "jogo" else "REPRODUZIR")                 if no_disco else "BAIXAR"
+            p.drawText(faixa.x() + self.m[9],
+                       faixa.bottom() - self.m[16], acao)
+
+            detalhe = " · ".join(x for x in (
+                str(obra.get("ano") or ""),
+                f"{obra['temporadas']} temp." if obra.get("temporadas") else "",
+                f"nota {obra['nota']:.1f}" if obra.get("nota") else "") if x)
+            if detalhe:
+                p.setFont(self.f_selo)
+                p.setPen(QColor(pal.fraco))
+                p.drawText(faixa.x() + self.m[9], faixa.bottom() - self.m[5],
+                           detalhe)
+            p.restore()
+
+        # A borda vem em todos os estilos: e a confirmacao de "e este aqui".
+        r = QRectF(area.x() + 0.5, area.y() + 0.5,
+                   area.width() - 1, area.height() - 1)
+        caminho = QPainterPath()
+        caminho.addRoundedRect(r, 6, 6)
+        p.setPen(QPen(QColor(pal.azul if focado else pal.borda_txt),
+                      2 if focado else 1))
+        p.setBrush(Qt.NoBrush)
+        p.drawPath(caminho)
+
     def _moldura(self, p: QPainter, area: QRect, destacado: bool,
                  focado: bool, raio: int = 6) -> QPainterPath:
         pal = self.paleta
@@ -195,26 +258,35 @@ class DelegateCartao(QStyledItemDelegate):
 
     def _grade(self, p: QPainter, area: QRect, obra: dict,
                destacado: bool, focado: bool) -> None:
-        """Cartao pronto vem do cache; so o contorno e o progresso mudam."""
-        p.drawPixmap(area.topLeft(), self._cartao_estatico(obra))
+        """Cartao pronto vem do cache; so o hover e o progresso mudam.
 
-        # Contorno: e a unica parte que depende do mouse e do foco, entao fica
-        # de fora do cache — repintar so isto e barato.
+        Tudo o que reage ao mouse e desenhado aqui, dentro da celula. Nada de
+        janela flutuante: ela custa uma janela nativa por vez, pisca ao entrar e
+        sair, e cobre o catalogo justamente quando a pessoa esta varrendo com os
+        olhos.
+        """
+        cheio = area
+        if self.estilo_hover == "elevar":
+            # Cresce sem estourar a celula: no estado normal o cartao fica um
+            # pouco menor, e o hover devolve o tamanho inteiro. Crescer para
+            # fora seria recortado pelo Qt.
+            folga = 0 if destacado else FOLGA_ELEVAR
+            cheio = area.adjusted(folga, folga, -folga, -folga)
+
+        pm = self._cartao_estatico(obra)
+        if cheio.size() != pm.size():
+            p.drawPixmap(cheio, pm)
+        else:
+            p.drawPixmap(cheio.topLeft(), pm)
+
         if destacado or focado:
-            pal = self.paleta
-            r = QRectF(area.x() + 0.5, area.y() + 0.5,
-                       area.width() - 1, area.height() - 1)
-            caminho = QPainterPath()
-            caminho.addRoundedRect(r, 6, 6)
-            p.setPen(QPen(QColor(pal.azul if focado else pal.borda_txt),
-                          2 if focado else 1))
-            p.setBrush(Qt.NoBrush)
-            p.drawPath(caminho)
+            self._realce(p, cheio, obra, focado)
 
         dados = self.progresso.get(obra.get("infohash_ativo") or "")
         if dados and not dados.get("terminou"):
-            area_capa = QRect(area.x() + 1, area.y() + 1,
-                              self.largura - 2, self.altura_capa)
+            escala = cheio.width() / max(1, self.largura)
+            area_capa = QRect(cheio.x() + 1, cheio.y() + 1,
+                              cheio.width() - 2, int(self.altura_capa * escala))
             p.save()
             p.setClipRect(area_capa)
             self._faixa_progresso(p, area_capa, obra)
@@ -492,6 +564,7 @@ class GradeObras(QListView):
     """A grade em si. Alterna entre cartoes e lista sem reconstruir nada."""
 
     abrir = Signal(int)
+    sob_o_mouse = Signal(object)      # a obra sob o cursor, ou None
 
     def __init__(self, pasta_posters: Path, paleta: tema.Paleta, escala: float,
                  tamanho: str = "medio", modo: str = "grade", pai=None):
@@ -549,8 +622,19 @@ class GradeObras(QListView):
         """Recebe o painel de previa, criado pela janela."""
         self.previa = previa
 
+    def definir_estilo_hover(self, estilo: str) -> None:
+        """Troca o jeito de reagir ao mouse, sem remontar a grade."""
+        if estilo == self.delegate.estilo_hover:
+            return
+        self.delegate.estilo_hover = estilo
+        self.delegate._cache_cartao.clear()
+        self._esconder_previa()
+        self.sob_o_mouse.emit(None)
+        self.viewport().update()
+
     def _mostrar_previa(self) -> None:
-        if self.previa is None or self._sob_o_mouse < 0:
+        if (self.previa is None or self._sob_o_mouse < 0
+                or self.delegate.estilo_hover != "painel"):
             return
         indice = self.modelo.index(self._sob_o_mouse, 0)
         obra = self.modelo.obra_em(indice)
@@ -575,7 +659,9 @@ class GradeObras(QListView):
             return
         self._sob_o_mouse = linha
         self._esconder_previa()
-        if linha >= 0:
+        obra = self.modelo.obra_em(indice) if linha >= 0 else None
+        self.sob_o_mouse.emit(obra)
+        if linha >= 0 and self.delegate.estilo_hover == "painel":
             from .previa import ESPERA
 
             self._espera_previa.start(ESPERA)
@@ -584,6 +670,7 @@ class GradeObras(QListView):
         super().leaveEvent(evento)
         self._sob_o_mouse = -1
         self._esconder_previa()
+        self.sob_o_mouse.emit(None)
 
     def _capa_chegou(self, caminho: str, largura: int) -> None:
         self._repintar.start()

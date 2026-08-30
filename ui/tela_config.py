@@ -795,6 +795,31 @@ class TelaConfig(QWidget):
             gl.addWidget(widgets.ajuda("    " + nota))
         col.addWidget(grupo_tema)
 
+        from ui.grade import ESTILOS_HOVER
+
+        grupo_hover = QGroupBox("Ao passar o mouse sobre uma capa")
+        gh = QVBoxLayout(grupo_hover)
+        gh.addWidget(widgets.ajuda(
+            "Nenhum é obviamente melhor — depende de você preferir informação "
+            "ou silêncio visual. Para experimentar todos com o seu catálogo "
+            "antes de decidir: python -m ferramentas.hovers"))
+        self.grupo_hover = QButtonGroup(self)
+        notas = {
+            "borda": "O mais discreto: a grade não se mexe.",
+            "elevar": "O cartão ocupa a célula inteira; sem empurrar os vizinhos.",
+            "revelar": "Uma faixa com a ação sobe no pé da capa.",
+            "rodape": "Movimento zero na grade; a informação vai para o rodapé.",
+            "painel": "Mostra mais, mas cobre parte do catálogo.",
+        }
+        for valor, rotulo in ESTILOS_HOVER.items():
+            r = QRadioButton(rotulo)
+            r.valor = valor          # type: ignore[attr-defined]
+            self.grupo_hover.addButton(r)
+            gh.addWidget(r)
+            gh.addWidget(widgets.ajuda("    " + notas.get(valor, "")))
+        self.grupo_hover.buttonClicked.connect(self._aparencia_mudou)
+        col.addWidget(grupo_hover)
+
         grupo_guia = QGroupBox("Guia do app")
         gg = QVBoxLayout(grupo_guia)
         gg.addWidget(widgets.ajuda(
@@ -930,7 +955,8 @@ class TelaConfig(QWidget):
         for grupo, chave, padrao in ((self.grupo_tema, "tema", "escuro"),
                                      (self.grupo_fonte, "fonte", "normal"),
                                      (self.grupo_grade, "tamanho_grade", "medio"),
-                                     (self.grupo_modo, "modo", "grade")):
+                                     (self.grupo_modo, "modo", "grade"),
+                                     (self.grupo_hover, "hover", "elevar")):
             alvo = prefs.get(chave, padrao)
             for b in grupo.buttons():
                 if b.valor == alvo:      # type: ignore[attr-defined]
@@ -940,7 +966,8 @@ class TelaConfig(QWidget):
         return next((b.valor for b in grupo.buttons() if b.isChecked()), padrao)
 
     def aparencia(self) -> dict:
-        return {"tema": self._escolhido(self.grupo_tema, "escuro"),
+        return {"hover": self._escolhido(self.grupo_hover, "elevar"),
+                "tema": self._escolhido(self.grupo_tema, "escuro"),
                 "fonte": self._escolhido(self.grupo_fonte, "normal"),
                 "tamanho_grade": self._escolhido(self.grupo_grade, "medio"),
                 "modo": self._escolhido(self.grupo_modo, "grade")}

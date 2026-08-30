@@ -216,6 +216,9 @@ class Janela(QWidget):
         self.previa.reproduzir.connect(self._previa_reproduzir)
         self.previa.baixar.connect(self._previa_baixar)
         self.grade.ligar_previa(self.previa)
+        self.grade.definir_estilo_hover(
+            (self.cfg.bruto.get("aparencia") or {}).get("hover", "elevar"))
+        self.grade.sob_o_mouse.connect(self._obra_sob_o_mouse)
 
         self.tela_player = TelaPlayer(self.cfg, self.con, self.paleta, self.escala)
         self.tela_player.pedir_voltar.connect(self.voltar)
@@ -392,6 +395,27 @@ class Janela(QWidget):
         self.lateral.setVisible(visivel)
         self.faixa_topo.setVisible(visivel)
 
+    def _obra_sob_o_mouse(self, obra) -> None:
+        """Alimenta a linha de rodape, quando esse e o estilo escolhido."""
+        if self.grade.delegate.estilo_hover != "rodape":
+            return
+        if obra is None:
+            self.atualizar_grade_status()
+            return
+        partes = [obra["titulo"]]
+        for x in (str(obra.get("ano") or ""),
+                  f"{obra['temporadas']} temporadas" if obra.get("temporadas") else "",
+                  f"nota {obra['nota']:.1f}" if obra.get("nota") else "",
+                  tema.CORES_ESTADO.get(obra.get("estado", "indice"), ("", ""))[1],
+                  formatar_bytes(obra.get("bytes_total"))):
+            if x:
+                partes.append(x)
+        self.status("   ·   ".join(partes))
+
+    def atualizar_grade_status(self) -> None:
+        n = self.grade.modelo.rowCount()
+        self.status(f"{n} {'obra' if n == 1 else 'obras'}")
+
     def _previa_reproduzir(self, item_id: int) -> None:
         """O botao da previa faz o mesmo que o da tela da obra.
 
@@ -504,6 +528,8 @@ class Janela(QWidget):
         self.window().setStyleSheet(tema.folha(self.paleta, self.escala))
         widgets.limpar_cache_capas()
         self.grade.aplicar_tema(self.paleta, self.escala, self.tamanho_grade, self.modo)
+        self.grade.definir_estilo_hover(
+            (self.cfg.bruto.get("aparencia") or {}).get("hover", "elevar"))
         self.tela_item.aplicar_tema(self.paleta, self.escala)
         self.tela_organizar.aplicar_tema(self.paleta, self.escala)
         self.tela_player.aplicar_tema(self.paleta, self.escala)
