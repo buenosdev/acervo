@@ -65,6 +65,7 @@ class TelaConfig(QWidget):
         self.abas.addTab(self._aba_capas(), "Capas")
         self.abas.addTab(self._aba_seguranca(), "Segurança")
         self.abas.addTab(self._aba_duplicatas(), "Duplicatas")
+        self.abas.addTab(self._aba_reproducao(), "Reprodução")
         self.abas.addTab(self._aba_aparencia(), "Aparência")
         self.abas.addTab(self._aba_sobre(), "Sobre")
         col.addWidget(self.abas, 1)
@@ -653,6 +654,126 @@ class TelaConfig(QWidget):
                 return
         QDesktopServices.openUrl(QUrl(sobre.URL_LICENCA))
 
+    def _aba_reproducao(self) -> QWidget:
+        """Player embutido: ligar, escolher motor, e baixar um se faltar."""
+        from core import players
+
+        w = QWidget()
+        col = QVBoxLayout(w)
+        col.setContentsMargins(4, 14, 4, 10)
+        col.setSpacing(14)
+        col.addWidget(widgets.ajuda(
+            "Com o player embutido ligado, “Reproduzir” abre o vídeo dentro do "
+            "Acervo. Desligado, ele abre no programa padrão do Windows."))
+
+        self.marca_embutido = QCheckBox("Reproduzir dentro do Acervo")
+        self.marca_embutido.setAccessibleName("Usar o player embutido")
+        col.addWidget(self.marca_embutido)
+
+        grupo = QGroupBox("Motor de vídeo")
+        gl = QVBoxLayout(grupo)
+        gl.addWidget(widgets.ajuda(
+            "O motor decodifica o vídeo. VLC e mpv trazem os próprios "
+            "decodificadores, então tocam x265, DTS e MKV sem depender de nada "
+            "instalado no Windows — que é onde o player do sistema costuma "
+            "falhar num acervo de filme baixado."))
+
+        self.retorno_player = Retorno()
+        gl.addWidget(self.retorno_player)
+
+        linha = QHBoxLayout()
+        b_testar = QPushButton("Ver o que há nesta máquina")
+        b_testar.setAccessibleName("Detectar os motores de vídeo disponíveis")
+        b_testar.clicked.connect(self._testar_player)
+        linha.addWidget(b_testar)
+
+        self.b_mpv = QPushButton("Baixar um motor de vídeo")
+        self.b_mpv.setAccessibleName("Baixar o libmpv")
+        self.b_mpv.setToolTip("Para quem não tem VLC instalado.")
+        self.b_mpv.clicked.connect(self._baixar_mpv)
+        linha.addWidget(self.b_mpv)
+        linha.addStretch(1)
+        gl.addLayout(linha)
+        col.addWidget(grupo)
+
+        self.campo_mpv = QLineEdit()
+        self.campo_mpv.setProperty("mono", "true")
+        col.addWidget(_linha_rotulada(
+            "Caminho do libmpv-2.dll",
+            self._com_botoes(self.campo_mpv, "Escolher…", self._escolher_mpv),
+            "Deixe vazio para o app procurar sozinho."))
+
+        col.addStretch(1)
+        QTimer.singleShot(0, self._testar_player)
+        return w
+
+    def _testar_player(self) -> None:
+        from core import players
+
+        achados = players.detectar(self.cfg)
+        linhas = [f"{'✓' if a['disponivel'] else '✗'} {a['nome']}: {a['mensagem']}"
+                  for a in achados]
+        motor, explicacao = players.escolher(self.cfg)
+        self.retorno_player.mostrar(
+            "ok" if motor.recursos.embutido else "aviso",
+            f"Vai usar: {motor.nome}.",
+            explicacao + "\n\n" + "\n".join(linhas))
+        self.b_mpv.setEnabled(not any(
+            a["tipo"] == "mpv" and a["disponivel"] for a in achados))
+
+    def _escolher_mpv(self) -> None:
+        caminho, _ = QFileDialog.getOpenFileName(
+            self, "Escolher o libmpv-2.dll", "", "Bibliotecas (*.dll)")
+        if caminho:
+            self.campo_mpv.setText(caminho)
+
+    def _baixar_mpv(self) -> None:
+        """Baixa o libmpv. Pergunta antes, com origem e tamanho a vista."""
+        from core.local import pasta_dados
+        from core.players import mpv as motor_mpv
+
+        try:
+            url, tamanho = motor_mpv.endereco_do_pacote()
+        except Exception as e:                         # noqa: BLE001
+            self.retorno_player.mostrar("erro", str(e))
+            return
+
+        if QMessageBox.question(
+                self, "Baixar um motor de vídeo",
+                f"Baixar o libmpv ({tamanho / 1048576:.0f} MB)?\n\n"
+                f"Origem: {url}\n\n"
+                "É o motor de vídeo do projeto mpv, software livre. Ele fica "
+                "numa pasta ao lado do Acervo — nada é instalado no sistema, e "
+                "dá para apagar depois.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes) != QMessageBox.Yes:
+            return
+
+        self.b_mpv.setEnabled(False)
+        self.retorno_player.mostrar("info", "Baixando o motor de vídeo…",
+                                    "São ~30 MB; pode levar um minuto.")
+        destino = pasta_dados() / "dados"
+
+        def trabalho():
+            return motor_mpv.baixar_biblioteca(destino)
+
+        def pronto(caminho):
+            if not vivo(self.b_mpv):
+                return
+            self.campo_mpv.setText(str(caminho))
+            self.cfg, _ = ajustes.salvar(self.coletar(), self.cfg)
+            self.retorno_player.mostrar("ok", "Motor de vídeo pronto.",
+                                        str(caminho))
+            self.salvou.emit()
+            self._testar_player()
+
+        def falhou(mensagem):
+            if vivo(self.b_mpv):
+                self.b_mpv.setEnabled(True)
+                self.retorno_player.mostrar("erro", mensagem)
+
+        self.executor.rodar("baixar-mpv", trabalho, pronto, falhou)
+
     def _aba_aparencia(self) -> QWidget:
         w = QWidget()
         col = QVBoxLayout(w)
@@ -801,6 +922,10 @@ class TelaConfig(QWidget):
         self.campo_protegidas.setText(
             ", ".join(c["seguranca"].get("pastas_protegidas") or []))
 
+        rep = self.cfg.bruto.get("reproducao") or {}
+        self.marca_embutido.setChecked(bool(rep.get("embutido", True)))
+        self.campo_mpv.setText(rep.get("mpv_caminho") or "")
+
         prefs = self.cfg.bruto.get("aparencia") or {}
         for grupo, chave, padrao in ((self.grupo_tema, "tema", "escuro"),
                                      (self.grupo_fonte, "fonte", "normal"),
@@ -833,6 +958,10 @@ class TelaConfig(QWidget):
                 "biblioteca": self.campo_biblioteca.text().strip(),
                 "staging": self.campo_staging.text().strip(),
                 "ignorar": self.campo_ignorar.text(),
+            },
+            "reproducao": {
+                "embutido": self.marca_embutido.isChecked(),
+                "mpv_caminho": self.campo_mpv.text().strip(),
             },
             "motor": {
                 "tipo": self._escolhido(self.grupo_motor, "auto"),

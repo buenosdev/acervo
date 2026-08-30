@@ -18,6 +18,7 @@ propaganda, e so depois de a midia daquele release ter saido em seguranca.
 """
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -194,4 +195,48 @@ def varrer_sobras(con: sqlite3.Connection, cfg) -> list[str]:
         if not caminho_torrent:
             continue                    # nao sabemos de quem e: nao se mexe
         feitos += limpar_sobras(con, cfg, caminho_torrent, pasta)
+
+    feitos += _torrents_duplicados(con, staging)
+    return feitos
+
+
+def _torrents_duplicados(con: sqlite3.Connection, staging: Path) -> list[str]:
+    """Remove os `.torrent` da pasta de download que ja estao no indice.
+
+    O aria2 gravava uma copia de cada torrent recebido, com nome de hash. Sao
+    duplicatas exatas do que ja esta guardado, e o nome nao diz o que e — abrir
+    a pasta de download nao ajuda ninguem assim.
+
+    So sai o que for comprovadamente duplicata: o infohash e recalculado do
+    conteudo do arquivo e tem de bater com um torrent do indice. `.torrent`
+    desconhecido fica onde esta, porque pode ter sido posto ali de proposito.
+    """
+    from . import bencode
+
+    feitos: list[str] = []
+    try:
+        arquivos = [f for f in staging.glob("*.torrent") if f.is_file()]
+    except OSError:
+        return feitos
+
+    for f in arquivos:
+        try:
+            dados, _ = bencode.decodificar(f.read_bytes())
+            info = dados.get(b"info")
+            if not info:
+                continue
+            infohash = hashlib.sha1(bencode.codificar(info)).hexdigest()
+        except (OSError, ValueError, IndexError, TypeError):
+            continue                    # ilegivel: nao se mexe
+
+        conhecido = con.execute(
+            "SELECT 1 FROM torrents WHERE lower(infohash) = ? LIMIT 1",
+            (infohash.lower(),)).fetchone()
+        if not conhecido:
+            continue                    # nao esta no indice: pode ser seu
+        try:
+            f.unlink()
+            feitos.append(f.name)
+        except OSError:
+            pass
     return feitos

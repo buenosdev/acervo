@@ -22,7 +22,8 @@ from PySide6.QtWidgets import QListView, QStyle, QStyledItemDelegate
 
 from . import tema
 from .widgets import (PROPORCAO_CAPA, ROTULO_TIPO, TAMANHOS_CARTAO, capa_pronta,
-                      carregador, formatar_bytes, geracao_capas, pedir_capa)
+                      carregador, converter_prontas, formatar_bytes,
+                      geracao_capas, pedir_capa)
 
 PAPEL_OBRA = Qt.UserRole + 1
 
@@ -517,10 +518,16 @@ class GradeObras(QListView):
         self._repintar = QTimer(self)
         self._repintar.setSingleShot(True)
         self._repintar.setInterval(60)         # junta as que chegam em rajada
-        self._repintar.timeout.connect(self.viewport().update)
+        self._repintar.timeout.connect(self._converter_e_repintar)
 
     def _capa_chegou(self, caminho: str, largura: int) -> None:
         self._repintar.start()
+
+    def _converter_e_repintar(self) -> None:
+        # Converter antes de repintar tira o custo de dentro do `paint`.
+        if converter_prontas():
+            self.delegate._cache_cartao.clear()
+        self.viewport().update()
 
     def wheelEvent(self, evento) -> None:          # noqa: N802
         """Roda do mouse com deslizamento; touchpad fica com o Qt."""

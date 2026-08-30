@@ -4,7 +4,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-VERSAO_SCHEMA = 2
+VERSAO_SCHEMA = 3
 
 SCHEMA = """
 -- Um registro por arquivo .torrent lido do indice.
@@ -103,6 +103,13 @@ CREATE TABLE IF NOT EXISTS seed_health (
     leechers        INTEGER,
     origem          TEXT,                      -- tracker | qbittorrent
     checado_em      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS posicoes (
+    caminho     TEXT PRIMARY KEY,   -- caminho do arquivo de video no disco
+    segundos    REAL NOT NULL,
+    duracao     REAL,
+    visto_em    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS config (

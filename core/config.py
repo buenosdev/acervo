@@ -53,6 +53,15 @@ PADROES = {
         "validade_saude_dias": 14,
         "pastas_protegidas": [],
     },
+    "reproducao": {
+        # Player embutido ligado de fabrica; desligado, "Reproduzir" volta a
+        # abrir no programa padrao do Windows.
+        "embutido": True,
+        "motor": "auto",          # auto | vlc | mpv | sistema
+        "vlc_caminho": "",
+        "mpv_caminho": "",
+        "volume": 90,
+    },
     "aparencia": {
         "tema": "escuro",
         "fonte": "normal",

@@ -155,6 +155,12 @@ class Aria2(Motor):
             "--bt-enable-lpd=true", "--enable-dht=true", "--enable-peer-exchange=true",
             f"--seed-time={self.tempo_semeando}",
             "--follow-torrent=mem", "--pause-metadata=false",
+            # O aria2 grava uma copia de todo torrent recebido por RPC, com
+            # nome de hash, na pasta de download. Vem ligado de fabrica. Aqui
+            # nao serve para nada: o app so adiciona torrents que ja estao no
+            # indice, entao a copia e duplicata do que ja esta guardado — e com
+            # um nome que nao diz o que e.
+            "--rpc-save-upload-metadata=false",
             "--max-concurrent-downloads=4", "--summary-interval=0", "--quiet=true",
         ]
         try:

@@ -33,6 +33,7 @@ LARGURA_LATERAL = 196
 ALTURA_TOPO = 54
 
 PAGINA_CATALOGO, PAGINA_ITEM, PAGINA_CONFIG, PAGINA_ORGANIZAR = 0, 1, 2, 3
+PAGINA_PLAYER = 4
 
 # Capas por leva. O TMDB pede uma pausa entre consultas, entao buscar as 150
 # de uma vez deixaria uma tarefa presa por minutos. Em levas, o catalogo vai
@@ -199,11 +200,16 @@ class Janela(QWidget):
         self.paginas.addWidget(self.tela_config)
 
         from .tela_organizar import TelaOrganizar
+        from .tela_player import TelaPlayer
         self.tela_organizar = TelaOrganizar(self.cfg, self.con, self.executor,
                                             self.paleta, self.escala)
         self.tela_organizar.mudou.connect(self.recarregar_tudo)
         self.tela_organizar.pedir_voltar.connect(self.voltar)
         self.paginas.addWidget(self.tela_organizar)
+
+        self.tela_player = TelaPlayer(self.cfg, self.con, self.paleta, self.escala)
+        self.tela_player.pedir_voltar.connect(self.voltar)
+        self.paginas.addWidget(self.tela_player)
 
         col.addWidget(self.paginas, 1)
         return area
@@ -343,6 +349,13 @@ class Janela(QWidget):
             self.rot_titulo.setText(self._titulo_do_filtro())
 
     def voltar(self) -> None:
+        # Sair do player sem encerrar o motor deixaria o video tocando por tras
+        # do catalogo, invisivel e com som.
+        if (self.paginas.currentIndex() == PAGINA_PLAYER
+                and self.tela_player.motor is not None):
+            self.tela_player.fechar()
+            return
+
         if self.paginas.currentIndex() != PAGINA_CATALOGO:
             self.ir_para(PAGINA_CATALOGO)
 
@@ -356,6 +369,17 @@ class Janela(QWidget):
         self.tela_organizar.mostrar()
         self.rot_titulo.setText("Organizar")
         self.ir_para(PAGINA_ORGANIZAR)
+
+    def abrir_player(self, caminho, titulo: str = "") -> bool:
+        """Abre o video na pagina do player. False se coube ao sistema abrir."""
+        self.tela_player.cfg = self.cfg
+        self.rot_titulo.setText(titulo or "Reproduzindo")
+        self.ir_para(PAGINA_PLAYER)
+        if self.tela_player.tocar(caminho, titulo):
+            return True
+        # Sem motor embutido: o proprio `tocar` ja mandou para o sistema.
+        self.voltar()
+        return False
 
     def abrir_guia(self, marcar: bool = True) -> None:
         """Abre o tour por cima da janela. Um de cada vez."""
@@ -421,6 +445,7 @@ class Janela(QWidget):
         self.grade.aplicar_tema(self.paleta, self.escala, self.tamanho_grade, self.modo)
         self.tela_item.aplicar_tema(self.paleta, self.escala)
         self.tela_organizar.aplicar_tema(self.paleta, self.escala)
+        self.tela_player.aplicar_tema(self.paleta, self.escala)
         self.rot_velocidade.setStyleSheet(
             f"color: {self.paleta.azul}; font-family: {tema.fonte_mono()};")
         self.btn_grade.setIcon(widgets.icone_visao("grade", self.paleta.fraco))

@@ -817,13 +817,32 @@ class TelaItem(QScrollArea):
     def _reproduzir_arquivo(self, e: dict) -> None:
         achado = self._no_disco(e["release"], e)
         if achado is not None:
-            self._abrir_no_sistema(achado)
+            rotulo = self.titulo
+            if e.get("temporada") is not None and e.get("episodio") is not None:
+                rotulo = (f"{self.titulo} — T{e['temporada']:02d}"
+                          f"E{e['episodio']:02d}")
+            self._abrir_no_sistema(achado, rotulo)
             return
         self.retorno_ficha.mostrar(
             "erro", f"Não achei {_limpo(e['nome'])} no disco.",
             "Use “Conferir disco” para o app reencontrar os arquivos.")
 
-    def _abrir_no_sistema(self, caminho: Path) -> None:
+    def _abrir_no_sistema(self, caminho: Path, titulo: str = "") -> None:
+        """Reproduz: na pagina do player, ou no programa padrao do Windows.
+
+        A janela decide — ela e quem tem a pagina do player. Se nao houver
+        motor embutido utilizavel, `abrir_player` devolve False depois de ja
+        ter entregue o arquivo ao sistema, que era o comportamento antigo.
+        """
+        janela = self.window()
+        if hasattr(janela, "abrir_player"):
+            try:
+                if janela.abrir_player(caminho, titulo or self.titulo):
+                    return
+                return          # coube ao sistema; ja foi aberto
+            except Exception as e:                     # noqa: BLE001
+                self.retorno_acao.mostrar("erro", f"Não consegui abrir: {e}")
+                return
         try:
             os.startfile(str(caminho))     # player/programa padrao do Windows
         except OSError as e:

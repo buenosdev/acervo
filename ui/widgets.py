@@ -212,6 +212,27 @@ def pedir_capa(caminho: Path, largura: int) -> None:
     carregador.pedir(str(caminho), largura, int(largura * PROPORCAO_CAPA))
 
 
+def converter_prontas(limite: int = 24) -> int:
+    """Transforma em QPixmap as imagens que as linhas de fundo terminaram.
+
+    Feito aqui, e nao dentro do `paint`, de proposito. QPixmap so pode ser
+    criado na linha principal, entao a conversao acabava caindo no meio do
+    desenho — e uma fila que revelasse varias capas novas de uma vez custava
+    dobrado, com picos de 17 a 21 ms. Convertendo antes de mandar repintar, a
+    pintura so encontra pixmap pronto.
+    """
+    if not _imagens_prontas:
+        return 0
+    feitos = 0
+    for chave in list(_imagens_prontas)[:limite]:
+        img = _imagens_prontas.pop(chave, None)
+        if img is None:
+            continue
+        _guardar(chave, QPixmap.fromImage(img))
+        feitos += 1
+    return feitos
+
+
 def _guardar(chave: tuple, pm: QPixmap) -> None:
     if len(_cache_capas) > 600:               # nao cresce sem limite
         _cache_capas.clear()
