@@ -249,10 +249,40 @@ def _por_tamanho(mapa: MapaDisco, uteis: list, maior) -> Path | None:
 
 
 def reconciliar(con: sqlite3.Connection, raiz_biblioteca: Path, ignorar: list[str],
-                protegidas: list[str]) -> ResumoDisco:
-    """Cruza o indice com o disco e regrava a tabela `disco`."""
+                protegidas: list[str], extras: list[Path] | None = None) -> ResumoDisco:
+    """Cruza o indice com o disco e regrava a tabela `disco`.
+
+    `extras` sao pastas fora da biblioteca que tambem devem ser olhadas — na
+    pratica, a pasta de download. Ela costuma ser irma da biblioteca, nao filha:
+    sem varre-la, o que esta baixando agora e o que acabou de baixar ficam
+    invisiveis para o app. Era o que fazia "Conferir disco" zerar o contador de
+    Baixando no meio de um download, e o que impedia o arquivo concluido de ser
+    levado para a biblioteca.
+    """
     raiz = Path(raiz_biblioteca)
     mapa, resumo = mapear(raiz, ignorar)
+
+    for extra in extras or []:
+        extra = Path(extra)
+        if not extra.is_dir():
+            continue
+        try:
+            if extra.resolve() == raiz.resolve() or raiz.resolve() in extra.resolve().parents:
+                continue                 # ja foi varrida como parte da biblioteca
+        except OSError:
+            continue
+        # A pasta de download nao entra na lista de ignorados: ali dentro,
+        # justamente, esta o que interessa.
+        mapa_extra, resumo_extra = mapear(extra, [])
+        for chave, caminhos in mapa_extra.pastas.items():
+            mapa.pastas[chave].extend(caminhos)
+        for chave, arquivos in mapa_extra.arquivos.items():
+            mapa.arquivos[chave].extend(arquivos)
+        for tamanho, caminhos in mapa_extra.tamanhos.items():
+            mapa.tamanhos[tamanho].extend(caminhos)
+        resumo.arquivos_vistos += resumo_extra.arquivos_vistos
+        resumo.bytes_no_disco += resumo_extra.bytes_no_disco
+        resumo.pastas_visitadas += resumo_extra.pastas_visitadas
     con.execute("DELETE FROM disco")
 
     torrents = con.execute(

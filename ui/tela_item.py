@@ -358,15 +358,28 @@ class TelaItem(QScrollArea):
         return self.caixa_acao
 
     def _limpar_acao(self) -> None:
-        while self.layout_acao.count():
-            item = self.layout_acao.takeAt(0)
-            if item.widget() and item.widget() is not self.retorno_acao:
-                item.widget().deleteLater()
-            elif item.layout():
-                while item.layout().count():
-                    x = item.layout().takeAt(0)
-                    if x.widget():
-                        x.widget().deleteLater()
+        """Desmonta a acao anterior por inteiro, em qualquer profundidade.
+
+        A versao anterior descia um nivel so. O bloco de progresso tem widgets
+        dois niveis abaixo (uma coluna dentro de uma linha), e esses ficavam
+        vivos: a barra, a porcentagem e a velocidade antigas continuavam
+        desenhadas no mesmo lugar, com as novas por cima. Era o texto embaralhado
+        e o botao Pausar sobre a barra.
+        """
+        def esvaziar(layout) -> None:
+            while layout.count():
+                item = layout.takeAt(0)
+                filho = item.widget()
+                if filho is not None:
+                    if filho is not self.retorno_acao:
+                        filho.setParent(None)
+                        filho.deleteLater()
+                    continue
+                if item.layout() is not None:
+                    esvaziar(item.layout())
+                    item.layout().deleteLater()
+
+        esvaziar(self.layout_acao)
 
     def _montar_acao(self) -> None:
         """Redesenha a acao principal conforme o estado atual do torrent."""

@@ -643,8 +643,10 @@ class Janela(QWidget):
         def trabalho():
             con = db.conectar(cfg.banco)
             try:
-                r = biblioteca.reconciliar(con, cfg.biblioteca, cfg.ignorar,
-                                           cfg.seguranca.get("pastas_protegidas", []))
+                r = biblioteca.reconciliar(
+                    con, cfg.biblioteca, cfg.ignorar,
+                    cfg.seguranca.get("pastas_protegidas", []),
+                    extras=[Path(cfg.staging)])
                 return {"completos": r.completos, "parciais": r.parciais,
                         "orfaos": len(r.orfaos), "bytes": r.bytes_no_disco}
             finally:
@@ -728,7 +730,8 @@ class Janela(QWidget):
                 seg = cfg.bruto.get("seguranca", {}) or {}
                 biblioteca.reconciliar(con, Path(cfg.biblioteca),
                                        seg.get("ignorar", []) or [],
-                                       seg.get("protegidas", []) or [])
+                                       seg.get("protegidas", []) or [],
+                                       extras=[Path(cfg.staging)])
                 feitos, nomes = 0, []
                 for infohash in alvos:
                     linha = con.execute(
@@ -756,7 +759,8 @@ class Janela(QWidget):
                 if feitos:
                     biblioteca.reconciliar(con, Path(cfg.biblioteca),
                                            seg.get("ignorar", []) or [],
-                                           seg.get("protegidas", []) or [])
+                                           seg.get("protegidas", []) or [],
+                                           extras=[Path(cfg.staging)])
                 return feitos, nomes
             finally:
                 con.close()

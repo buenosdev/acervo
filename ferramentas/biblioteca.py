@@ -30,7 +30,8 @@ def main() -> int:
     print(f"Biblioteca: {cfg.biblioteca}")
     print(f"Ignorando:  {', '.join(cfg.ignorar)}\n")
 
-    r = library.reconciliar(con, cfg.biblioteca, cfg.ignorar, protegidas)
+    r = library.reconciliar(con, cfg.biblioteca, cfg.ignorar, protegidas,
+                            extras=[Path(cfg.staging)])
 
     print("=== DISCO ==========================================================")
     print(f"  pastas percorridas ............ {r.pastas_visitadas}")

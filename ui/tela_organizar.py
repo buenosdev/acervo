@@ -194,7 +194,8 @@ class TelaOrganizar(QScrollArea):
                     seg = cfg.bruto.get("seguranca", {}) or {}
                     library.reconciliar(proprio, Path(cfg.biblioteca),
                                         seg.get("ignorar", []) or [],
-                                        seg.get("protegidas", []) or [])
+                                        seg.get("protegidas", []) or [],
+                                        extras=[Path(cfg.staging)])
                 finally:
                     proprio.close()
             return feitos, relatos

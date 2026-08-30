@@ -151,32 +151,42 @@ def baixar(con: sqlite3.Connection, cfg, caminho_torrent: str,
             passos.append(f"{len(urls)} trackers injetados"
                           + (" (o torrent nao tinha nenhum)" if not t["n_trackers"] else ""))
 
-        # Propaganda desmarcada. Em jogo nao se mexe: toda parte e obrigatoria.
-        if (opcoes.get("pular_lixo", True) and tipo != "jogo"
-                and q.recursos.escolher_arquivos):
-            lixo = [l["indice"] for l in con.execute(
-                "SELECT indice FROM torrent_files WHERE caminho_torrent = ? AND tipo = 'lixo'",
-                (caminho_torrent,))]
-            if lixo:
-                q.nao_baixar(infohash, lixo)
-                economia = con.execute(
-                    "SELECT COALESCE(SUM(tamanho),0) b FROM torrent_files "
-                    "WHERE caminho_torrent = ? AND tipo = 'lixo'", (caminho_torrent,)
-                ).fetchone()["b"]
-                passos.append(f"{len(lixo)} arquivos de propaganda desmarcados "
-                              f"({economia / 1024 / 1024:.1f} MiB a menos)")
+        # Propaganda e escolha do usuario saem numa chamada so. Em jogo nada
+        # e desmarcado: faltando uma parte, o jogo nao roda.
+        #
+        # Uma chamada, e nao duas, por causa do aria2: `select-file` diz o que
+        # MANTER, entao cada chamada recalcula a selecao inteira e a ultima
+        # apagava a anterior. Na pratica, escolher episodios reativava a
+        # propaganda — e escolher nada desativava a filtragem de propaganda.
+        if tipo != "jogo" and q.recursos.escolher_arquivos:
+            fora: list[int] = []
+            motivos: list[str] = []
 
-        # Escolha do usuario: baixar so parte do torrent (um episodio, por
-        # exemplo). Em jogo isto nao se aplica — faltando uma parte, nada roda.
-        if pular and tipo != "jogo" and q.recursos.escolher_arquivos:
-            q.nao_baixar(infohash, list(pular))
-            marcas = ",".join("?" * len(pular))
-            poupado = con.execute(
-                f"SELECT COALESCE(SUM(tamanho),0) b FROM torrent_files "
-                f"WHERE caminho_torrent = ? AND indice IN ({marcas})",
-                (caminho_torrent, *pular)).fetchone()["b"]
-            passos.append(f"{len(pular)} arquivo(s) que você não quis "
-                          f"({poupado / 1024 / 1024 / 1024:.2f} GiB a menos)")
+            if opcoes.get("pular_lixo", True):
+                lixo = [l["indice"] for l in con.execute(
+                    "SELECT indice FROM torrent_files "
+                    "WHERE caminho_torrent = ? AND tipo = 'lixo'", (caminho_torrent,))]
+                if lixo:
+                    fora += lixo
+                    motivos.append(f"{len(lixo)} de propaganda")
+
+            escolhidos = [int(i) for i in (pular or [])]
+            if escolhidos:
+                novos = [i for i in escolhidos if i not in fora]
+                fora += novos
+                motivos.append(f"{len(escolhidos)} que você não quis")
+
+            if fora:
+                q.nao_baixar(infohash, sorted(set(fora)))
+                marcas = ",".join("?" * len(fora))
+                poupado = con.execute(
+                    f"SELECT COALESCE(SUM(tamanho),0) b FROM torrent_files "
+                    f"WHERE caminho_torrent = ? AND indice IN ({marcas})",
+                    (caminho_torrent, *sorted(set(fora)))).fetchone()["b"]
+                passos.append(
+                    f"{len(set(fora))} arquivo(s) fora do download — "
+                    + ", ".join(motivos)
+                    + f" ({poupado / 1024 / 1024 / 1024:.2f} GiB a menos)")
 
         if opcoes.get("download_sequencial", False) and q.recursos.sequencial:
             q.sequencial(infohash)

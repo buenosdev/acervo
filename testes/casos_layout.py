@@ -70,6 +70,41 @@ def main() -> int:
     else:
         print(f"OK     lista    altura fixa {altura_lista}")
 
+    # A area de acao da tela da obra e remontada a cada tique do relogio. A
+    # limpeza anterior descia um nivel so nos layouts aninhados, e os widgets
+    # dois niveis abaixo — a barra de progresso, a porcentagem, a velocidade —
+    # sobreviviam: ficavam desenhados no mesmo lugar, com os novos por cima.
+    # Era o texto embaralhado e o botao Pausar sobre a barra.
+    from PySide6.QtWidgets import QProgressBar, QPushButton    # noqa: PLC0415
+
+    from ui.janela import Janela                               # noqa: PLC0415
+
+    janela = Janela(cfg)
+    janela.resize(1200, 860)
+    janela.show()
+    app.processEvents()
+    janela.abrir_item(obras[0]["id"])
+    app.processEvents()
+
+    tela = janela.tela_item
+    for i in range(6):
+        tela.ativo = {"progresso": 0.1 + i * 0.1, "velocidade": 5_000_000,
+                      "baixado": 10 ** 9, "tamanho": 10 ** 10, "eta": 600,
+                      "pausado": False}
+        tela._montar_acao()
+        app.processEvents()
+
+    barras = len(tela.caixa_acao.findChildren(QProgressBar))
+    botoes = len(tela.caixa_acao.findChildren(QPushButton))
+    if barras != 1 or botoes != 1:
+        print(f"FALHA  ação remontada 6x deixou {barras} barras e {botoes} botões "
+              f"vivos — eles se sobrepõem na tela")
+        falhas += 1
+    else:
+        print("OK     ação  remontar 6x deixa 1 barra e 1 botão")
+    janela.close()
+    app.processEvents()
+
     con.close()
     if falhas:
         print(f"\n{falhas} falha(s).")
