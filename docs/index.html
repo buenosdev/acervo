@@ -242,6 +242,14 @@
       <p>Mesmo infohash, mesma obra em qualidades diferentes, e arquivos repetidos no disco — cada caso com um tratamento diferente.</p>
     </div>
     <div class="recurso">
+      <h3>Player <em>embutido</em></h3>
+      <p>Toca com o motor do VLC — x265, DTS e MKV sem depender de codec do Windows. Troca faixa de áudio, lê os <code>.srt</code> da pasta, tem tela cheia de verdade e volta de onde você parou.</p>
+    </div>
+    <div class="recurso">
+      <h3>Apagar <em>escolhendo o quê</em></h3>
+      <p>Numa série de vinte episódios, apagar os cinco já assistidos — e só eles. Antes de apagar, diz quanto libera e avisa quando ninguém mais semeia aquilo, porque só aí apagar deixa de ser reversível.</p>
+    </div>
+    <div class="recurso">
       <h3>Acessibilidade <em>de verdade</em></h3>
       <p>Três temas (inclusive alto contraste), tamanho de texto ajustável, tudo alcançável por teclado e anunciado pelo leitor de tela.</p>
     </div>
@@ -258,13 +266,62 @@
         — dá para conferir de qual arquivo se trata sem ele dominar a tela.
       </p>
       <p>
-        Se o arquivo está no disco, o botão reproduz no seu player padrão. Se não
-        está, o mesmo botão baixa.
+        Se o arquivo está no disco, o botão reproduz — aqui dentro, no player
+        embutido, ou no programa que você já usa: ele pergunta na primeira vez e
+        obedece dali em diante. Se não está no disco, o mesmo botão baixa.
       </p>
     </div>
     <figure>
       <img class="tela" src="imagens/obra.jpg" width="1360" height="880" loading="lazy"
            alt="Tela de uma série no Acervo: imagem de fundo, título grande, sinopse, botão Baixar, lista de episódios e ficha com tamanho, seeds e hash.">
+    </figure>
+  </div>
+
+  <div class="par invertido">
+    <div>
+      <h3>Assistir sem sair daqui</h3>
+      <p>
+        O player embutido usa o motor do VLC, então toca o que o player do Windows
+        recusa: x265, DTS, MKV com várias faixas. Se o áudio dublado vier num
+        formato que a placa não abre, ele percebe e troca de faixa sozinho em vez
+        de tocar em silêncio.
+      </p>
+      <p>
+        Barra de tempo que vai aonde você clica, episódio seguinte e anterior numa
+        série, botão de recomeçar, e tela cheia que é a tela inteira. Ele guarda
+        onde você parou e oferece continuar dali na próxima vez.
+      </p>
+      <p>
+        É opcional. Na primeira reprodução ele pergunta onde você quer assistir, e
+        a resposta vale para sempre — ou até você mudar em Configurações.
+      </p>
+    </div>
+    <figure>
+      <img class="tela" src="imagens/escolher.png" width="501" height="474" loading="lazy"
+           alt="Diálogo do Acervo perguntando onde assistir: aqui no Acervo usando o VLC, ou no programa padrão do Windows, com a opção de não perguntar de novo.">
+      <figcaption>Pergunta uma vez. Depois obedece.</figcaption>
+    </figure>
+  </div>
+
+  <div class="par">
+    <div>
+      <h3>Apagar o arquivo, não a obra</h3>
+      <p>
+        Liberar espaço sem perder o catálogo: a mídia sai do disco, o
+        <code>.torrent</code> continua no índice e a obra segue lá, com capa e
+        sinopse, pronta para ser baixada de novo.
+      </p>
+      <p>
+        Você marca arquivo por arquivo e vê a conta subir enquanto marca. Se
+        alguma coisa ali não tem semeadores conhecidos, o app diz isso antes —
+        porque nesse caso apagar é definitivo, e essa diferença precisa aparecer
+        na hora da decisão, não depois.
+      </p>
+    </div>
+    <figure>
+      <img class="tela" src="imagens/apagar.png" width="1056" height="832" loading="lazy"
+           alt="Tela do Acervo para apagar arquivos: lista de episódios com tamanho, três marcados, e o rodapé somando 1,9 GB que seriam liberados.">
+      <figcaption>Três de vinte e um marcados, 1,9 GB. A conta é do acervo real.</figcaption>
     </figure>
   </div>
 

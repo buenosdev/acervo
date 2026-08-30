@@ -128,10 +128,18 @@ def resumo(con: sqlite3.Connection, cfg) -> dict:
         linha = con.execute(sql).fetchone()
         return linha[0] if linha else 0
 
+    # `n` conta torrents; `obras` conta obras distintas. Os dois numeros existem
+    # porque a barra lateral filtra obras: contar torrents ali prometia 203 "so
+    # no indice" e a grade abria com 138. O que a pessoa clica e o que ela ve.
     estados = {
-        l["estado"]: {"n": l["n"], "bytes": l["b"] or 0}
+        l["estado"]: {"n": l["n"], "obras": l["o"], "bytes": l["b"] or 0}
         for l in con.execute(
-            "SELECT estado, COUNT(*) n, SUM(bytes_presentes) b FROM disco GROUP BY estado")
+            "SELECT d.estado estado, COUNT(*) n, "
+            "       COUNT(DISTINCT t.item_id) o, SUM(d.bytes_presentes) b "
+            "FROM disco d "
+            "LEFT JOIN torrents t ON t.caminho = d.caminho_torrent "
+            "                    AND t.corrompido = 0 "
+            "GROUP BY d.estado")
     }
     return {
         "itens": um("SELECT COUNT(*) FROM itens"),

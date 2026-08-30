@@ -648,13 +648,13 @@ class Janela(QWidget):
             "tipo:filme": r["por_tipo"].get("filme", 0),
             "tipo:serie": r["por_tipo"].get("serie", 0),
             "tipo:jogo": r["por_tipo"].get("jogo", 0),
-            "estado:completo": r["estados"].get("completo", {}).get("n", 0),
+            "estado:completo": r["estados"].get("completo", {}).get("obras", 0),
             # "Baixando" conta o que o cliente tem em maos — inclusive pausado.
             # Antes contava arquivo incompleto no disco, que e outra coisa: um
             # download pausado com tudo baixado sumia dali.
             "estado:parcial": (len(self._no_cliente)
-                               or r["estados"].get("parcial", {}).get("n", 0)),
-            "estado:indice": r["estados"].get("indice", {}).get("n", 0),
+                               or r["estados"].get("parcial", {}).get("obras", 0)),
+            "estado:indice": r["estados"].get("indice", {}).get("obras", 0),
         }.items():
             b = self.botoes_nav.get(chave)
             if b:

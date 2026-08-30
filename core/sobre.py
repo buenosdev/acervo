@@ -11,7 +11,7 @@ deles aparecem; ambas as coisas sao mostradas na aba "Sobre".
 from __future__ import annotations
 
 NOME = "Acervo"
-VERSAO = "0.1.0"
+VERSAO = "0.2.0"
 DESCRICAO = "Gerenciador local de biblioteca de torrents."
 
 AUTOR = "Davi Bueno (buenosdev)"

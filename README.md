@@ -68,8 +68,18 @@ apagar é irreversível.
    é obrigatória;
 4. inicia.
 
+**Assiste aqui dentro.** Player embutido sobre o motor do VLC, que toca x265,
+DTS e MKV sem depender de codec do Windows. Troca de faixa de áudio (e troca
+sozinho quando a faixa dublada não abre), lê os `.srt` da pasta, tem tela cheia
+de verdade, episódio seguinte e anterior numa série, e volta de onde você
+parou. É opcional: na primeira reprodução ele pergunta se você prefere o seu
+player de sempre, e obedece dali em diante.
+
 **Devolve o espaço.** Depois de assistir, um botão apaga a mídia e mantém o
 `.torrent`. A biblioteca continua inteira no catálogo, ocupando kilobytes.
+Numa série dá para marcar só os episódios já assistidos — o app soma quanto
+libera antes, e avisa quando ninguém mais semeia aquilo, porque só nesse caso
+apagar deixa de ser reversível.
 
 ## Capas
 

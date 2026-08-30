@@ -112,6 +112,13 @@ def folha(p: Paleta, escala: float = 1.0) -> str:
 QWidget#raiz, QWidget#areaCentral {{ background: {p.fundo}; }}
 QWidget {{ color: {p.texto}; }}
 
+/* Dialogos. Sem isto eles ficam com o cinza padrao do Windows enquanto o texto
+   segue a cor do tema — claro sobre claro, ilegivel no tema escuro. */
+QDialog, QMessageBox {{ background: {p.fundo}; }}
+QDialog QScrollArea {{ background: transparent; border: none; }}
+QDialog QScrollArea > QWidget > QWidget {{ background: transparent; }}
+QMessageBox QLabel {{ color: {p.texto}; }}
+
 /* ------------------------------------------------------------- lateral */
 QWidget#lateral {{
     background: {p.lateral};
