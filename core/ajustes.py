@@ -456,3 +456,15 @@ def testar_pasta(caminho: str) -> dict:
     return {"ok": True, "mensagem": f"Pasta encontrada com {torrents} arquivo(s) .torrent.",
             "detalhe": "" if torrents else
                        "Nenhum .torrent aqui dentro — confira se é mesmo a pasta certa."}
+
+
+def aplicar_reproducao(cfg, **mudancas):
+    """Grava ajustes de reproducao e devolve a config nova.
+
+    Existe para a escolha feita no dialogo "onde assistir" ser exatamente a
+    mesma coisa que a chave em Configuracoes -> Reproducao, e nao um ajuste
+    paralelo que depois contradiz o outro.
+    """
+    from . import config
+
+    return config.aplicar({"reproducao": mudancas})

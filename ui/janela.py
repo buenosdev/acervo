@@ -208,6 +208,15 @@ class Janela(QWidget):
         self.tela_organizar.pedir_voltar.connect(self.voltar)
         self.paginas.addWidget(self.tela_organizar)
 
+        # A previa do catalogo: uma so, reaproveitada por todos os cartoes.
+        from .previa import PreviaObra
+
+        self.previa = PreviaObra(self.cfg.posters, self.paleta, self.escala, self)
+        self.previa.abrir.connect(self.abrir_item)
+        self.previa.reproduzir.connect(self._previa_reproduzir)
+        self.previa.baixar.connect(self._previa_baixar)
+        self.grade.ligar_previa(self.previa)
+
         self.tela_player = TelaPlayer(self.cfg, self.con, self.paleta, self.escala)
         self.tela_player.pedir_voltar.connect(self.voltar)
         self.paginas.addWidget(self.tela_player)
@@ -383,6 +392,23 @@ class Janela(QWidget):
         self.lateral.setVisible(visivel)
         self.faixa_topo.setVisible(visivel)
 
+    def _previa_reproduzir(self, item_id: int) -> None:
+        """O botao da previa faz o mesmo que o da tela da obra.
+
+        Passa pela tela da obra de proposito: e la que mora a logica de achar o
+        arquivo no disco, montar a fila de episodios e perguntar onde assistir.
+        Duplicar isso aqui seria criar um segundo caminho para divergir do
+        primeiro.
+        """
+        self.previa.esconder()
+        self.abrir_item(item_id)
+        QTimer.singleShot(80, self.tela_item.reproduzir_principal)
+
+    def _previa_baixar(self, item_id: int) -> None:
+        self.previa.esconder()
+        self.abrir_item(item_id)
+        QTimer.singleShot(80, self.tela_item.baixar_principal)
+
     def modo_cinema(self, ligado: bool) -> None:
         """Tela cheia de verdade: so o video na tela, mais nada.
 
@@ -399,13 +425,18 @@ class Janela(QWidget):
             if getattr(self, "_geometria_antes", None):
                 self.restoreGeometry(self._geometria_antes)
 
-    def abrir_player(self, caminho, titulo: str = "") -> bool:
-        """Abre o video na pagina do player. False se coube ao sistema abrir."""
+    def abrir_player(self, caminho, titulo: str = "", fila=None,
+                     indice: int = 0) -> bool:
+        """Abre o video na pagina do player. False se coube ao sistema abrir.
+
+        `fila` sao os episodios da serie, para o player oferecer proximo e
+        anterior sem passar pelo catalogo.
+        """
         self.tela_player.cfg = self.cfg
         self.rot_titulo.setText(titulo or "Reproduzindo")
         self.ir_para(PAGINA_PLAYER)
         self._mostrar_moldura(False)
-        if self.tela_player.tocar(caminho, titulo):
+        if self.tela_player.tocar(caminho, titulo, fila=fila, indice=indice):
             return True
         # Sem motor embutido: o proprio `tocar` ja mandou para o sistema.
         self.voltar()
@@ -476,6 +507,7 @@ class Janela(QWidget):
         self.tela_item.aplicar_tema(self.paleta, self.escala)
         self.tela_organizar.aplicar_tema(self.paleta, self.escala)
         self.tela_player.aplicar_tema(self.paleta, self.escala)
+        self.previa.aplicar_tema(self.paleta, self.escala)
         self.rot_velocidade.setStyleSheet(
             f"color: {self.paleta.azul}; font-family: {tema.fonte_mono()};")
         self.btn_grade.setIcon(widgets.icone_visao("grade", self.paleta.fraco))

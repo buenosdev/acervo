@@ -143,6 +143,7 @@ class TelaItem(QScrollArea):
         # Cada remontagem invalida os widgets antigos; os callbacks em voo
         # comparam com este numero antes de tocar em qualquer coisa.
         self.geracao = 0
+        self._botao_baixar = None
 
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -480,6 +481,7 @@ class TelaItem(QScrollArea):
         linha = QHBoxLayout()
         linha.setSpacing(8)
         b = QPushButton("  Baixar")
+        self._botao_baixar = b
         b.setIcon(widgets.icone_player("baixar", self.paleta.contraste_botao,
                                        tema.px(18, self.escala)))
         b.setObjectName("botaoGrande")
@@ -813,6 +815,17 @@ class TelaItem(QScrollArea):
         arquivos = [p for p in base.rglob("*") if p.suffix.lower() in extensoes]
         return max(arquivos, key=lambda p: p.stat().st_size) if arquivos else None
 
+    def reproduzir_principal(self) -> None:
+        """Faz o que o botao principal faria. Usado pela previa do catalogo."""
+        t = self.release_principal
+        if t and t.get("estado") == "completo":
+            self._reproduzir(t, self.dados["item"]["tipo"] == "jogo")
+
+    def baixar_principal(self) -> None:
+        t = self.release_principal
+        if t and hasattr(self, "_botao_baixar") and self._botao_baixar is not None:
+            self._botao_baixar.click()
+
     def _reproduzir(self, t: dict, jogo: bool) -> None:
         alvo = self._caminho_de_midia(t, so_video=not jogo)
         if not alvo:
@@ -824,32 +837,61 @@ class TelaItem(QScrollArea):
             return
         self._abrir_no_sistema(alvo)
 
+    def _rotulo_episodio(self, e: dict) -> str:
+        if e.get("temporada") is not None and e.get("episodio") is not None:
+            return f"{self.titulo} — T{e['temporada']:02d}E{e['episodio']:02d}"
+        return self.titulo
+
+    def _fila_de_episodios(self, atual: dict) -> tuple[list, int]:
+        """Todos os episodios que estao no disco, na ordem, e onde este esta.
+
+        Serve para o player oferecer proximo e anterior: quem assiste uma serie
+        nao quer voltar ao catalogo entre um episodio e outro.
+        """
+        fila, indice = [], 0
+        for e in self._episodios(self.dados["releases"]):
+            caminho = self._no_disco(e["release"], e)
+            if caminho is None:
+                continue
+            if (e.get("temporada") == atual.get("temporada")
+                    and e.get("episodio") == atual.get("episodio")
+                    and e.get("nome") == atual.get("nome")):
+                indice = len(fila)
+            fila.append((caminho, self._rotulo_episodio(e)))
+        return fila, indice
+
     def _reproduzir_arquivo(self, e: dict) -> None:
         achado = self._no_disco(e["release"], e)
         if achado is not None:
-            rotulo = self.titulo
-            if e.get("temporada") is not None and e.get("episodio") is not None:
-                rotulo = (f"{self.titulo} — T{e['temporada']:02d}"
-                          f"E{e['episodio']:02d}")
-            self._abrir_no_sistema(achado, rotulo)
+            fila, indice = self._fila_de_episodios(e)
+            self._abrir_no_sistema(achado, self._rotulo_episodio(e),
+                                   fila=fila, indice=indice)
             return
         self.retorno_ficha.mostrar(
             "erro", f"Não achei {_limpo(e['nome'])} no disco.",
             "Use “Conferir disco” para o app reencontrar os arquivos.")
 
-    def _abrir_no_sistema(self, caminho: Path, titulo: str = "") -> None:
-        """Reproduz: na pagina do player, ou no programa padrao do Windows.
+    def _abrir_no_sistema(self, caminho: Path, titulo: str = "",
+                          fila: list | None = None, indice: int = 0) -> None:
+        """Reproduz onde a pessoa escolher: aqui dentro ou no programa do Windows."""
+        from .escolher_player import AQUI, perguntar
 
-        A janela decide — ela e quem tem a pagina do player. Se nao houver
-        motor embutido utilizavel, `abrir_player` devolve False depois de ja
-        ter entregue o arquivo ao sistema, que era o comportamento antigo.
-        """
+        rotulo = titulo or self.titulo
+        escolha, lembrar = perguntar(self.cfg, rotulo, self.paleta, self.escala, self)
+        if escolha is None:
+            return                              # cancelou
+
+        if lembrar:
+            from core import ajustes
+            self.cfg = ajustes.aplicar_reproducao(
+                self.cfg, embutido=(escolha == AQUI), perguntar=False)
+            self.mudou.emit()
+
         janela = self.window()
-        if hasattr(janela, "abrir_player"):
+        if escolha == AQUI and hasattr(janela, "abrir_player"):
             try:
-                if janela.abrir_player(caminho, titulo or self.titulo):
+                if janela.abrir_player(caminho, rotulo, fila=fila, indice=indice):
                     return
-                return          # coube ao sistema; ja foi aberto
             except Exception as e:                     # noqa: BLE001
                 self.retorno_acao.mostrar("erro", f"Não consegui abrir: {e}")
                 return

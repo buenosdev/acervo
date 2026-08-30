@@ -298,6 +298,17 @@ def icone_player(nome: str, cor: str, lado: int = 22) -> QIcon:
     elif nome == "voltar":
         p.drawLine(15 * u, 5 * u, 8 * u, 12 * u)
         p.drawLine(8 * u, 12 * u, 15 * u, 19 * u)
+    elif nome in ("proximo", "anterior"):
+        s = 1 if nome == "proximo" else -1
+        meio = 12 * u
+        for desloc in (-3.5, 1.5):
+            caminho = QPainterPath()
+            base = meio + s * desloc * u
+            caminho.moveTo(base, 6 * u)
+            caminho.lineTo(base + s * 5 * u, 12 * u)
+            caminho.lineTo(base, 18 * u)
+            caminho.closeSubpath()
+            p.fillPath(caminho, c)
     elif nome == "baixar":
         p.drawLine(12 * u, 4 * u, 12 * u, 16 * u)
         p.drawLine(12 * u, 16 * u, 7 * u, 11 * u)

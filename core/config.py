@@ -57,6 +57,9 @@ PADROES = {
         # Player embutido ligado de fabrica; desligado, "Reproduzir" volta a
         # abrir no programa padrao do Windows.
         "embutido": True,
+        # Pergunta onde assistir antes de reproduzir. Some assim que a pessoa
+        # marcar "nao perguntar de novo" — e ai vale o que ela escolheu.
+        "perguntar": True,
         "motor": "auto",          # auto | vlc | mpv | sistema
         "vlc_caminho": "",
         "mpv_caminho": "",

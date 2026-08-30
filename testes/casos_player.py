@@ -104,6 +104,36 @@ def main() -> int:
     else:
         print("OK     assistir até o fim limpa a posição")
 
+    # --- 3. a pergunta "onde assistir" ---------------------------------------
+    from ui.escolher_player import AQUI, FORA, perguntar
+
+    class _Cfg(_Config):
+        pass
+
+    # Quem ja pediu para nao ser perguntado nao ve dialogo nenhum: a resposta
+    # sai direto do que ficou guardado.
+    escolha, lembrar = perguntar(_Cfg(perguntar=False, embutido=True), "x", None, 1.0)
+    if escolha != AQUI or lembrar:
+        print(f"FALHA  com perguntar=False e embutido=True, devia devolver {AQUI}")
+        falhas += 1
+    escolha, _ = perguntar(_Cfg(perguntar=False, embutido=False), "x", None, 1.0)
+    if escolha != FORA:
+        print(f"FALHA  com embutido=False, devia devolver {FORA}")
+        falhas += 1
+    else:
+        print("OK     não pergunta quando a pessoa já decidiu")
+
+    # Sem motor embutido utilizavel, perguntar seria oferecer o que nao existe.
+    escolha, _ = perguntar(_Cfg(perguntar=True, embutido=True,
+                                vlc_caminho="Z:/nao/existe",
+                                mpv_caminho="Z:/nao/existe/libmpv-2.dll"),
+                           "x", None, 1.0)
+    if escolha != FORA:
+        print("FALHA  sem motor embutido, não devia oferecer a opção de assistir aqui")
+        falhas += 1
+    else:
+        print("OK     sem motor embutido, vai direto para o programa do sistema")
+
     con.close()
     import shutil
     shutil.rmtree(pasta, ignore_errors=True)

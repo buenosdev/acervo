@@ -134,6 +134,54 @@ class _Faixa(QWidget):
         self.animacao.start()
 
 
+class BarraTempo(QSlider):
+    """Barra de progresso onde clicar em qualquer ponto leva aquele ponto.
+
+    O QSlider comum nao faz isso: clicar fora do castiçal avanca so um passo de
+    pagina, e como o relogio do player reescreve o valor 200 ms depois, o efeito
+    na tela e a barra pular um tico e voltar — que e exatamente a sensacao de
+    "nao consigo ir pra frente". Todo player de video trata o clique como
+    "quero ir para ali", e e o que isto faz.
+    """
+
+    buscar = Signal(float)              # fracao de 0 a 1
+
+    def __init__(self, pai=None):
+        super().__init__(Qt.Horizontal, pai)
+        self.setRange(0, 10000)
+
+    def _fracao(self, x: float) -> float:
+        util = max(1, self.width())
+        return min(1.0, max(0.0, x / util))
+
+    def mousePressEvent(self, evento) -> None:            # noqa: N802
+        if evento.button() != Qt.LeftButton:
+            super().mousePressEvent(evento)
+            return
+        fracao = self._fracao(evento.position().x())
+        self.setValue(round(fracao * self.maximum()))
+        self.setSliderDown(True)          # segue arrastando sem soltar o botao
+        self.sliderMoved.emit(self.value())
+        evento.accept()
+
+    def mouseMoveEvent(self, evento) -> None:             # noqa: N802
+        if self.isSliderDown():
+            fracao = self._fracao(evento.position().x())
+            self.setValue(round(fracao * self.maximum()))
+            self.sliderMoved.emit(self.value())
+            evento.accept()
+            return
+        super().mouseMoveEvent(evento)
+
+    def mouseReleaseEvent(self, evento) -> None:          # noqa: N802
+        if evento.button() == Qt.LeftButton and self.isSliderDown():
+            self.setSliderDown(False)
+            self.buscar.emit(self.value() / self.maximum())
+            evento.accept()
+            return
+        super().mouseReleaseEvent(evento)
+
+
 class TelaPlayer(QWidget):
     pedir_voltar = Signal()
 
@@ -148,7 +196,8 @@ class TelaPlayer(QWidget):
         self.motor: players.Player | None = None
         self.caminho: Path | None = None
         self.titulo = ""
-        self._arrastando = False
+        self.fila: list = []          # (caminho, rotulo) da serie
+        self.indice = 0
         self._faixas_montadas = False
         self._cheia = False
         self._cursor_antes = QPoint()
@@ -237,12 +286,11 @@ class TelaPlayer(QWidget):
         self.rot_agora.setStyleSheet(estilo_tempo)
         linha.addWidget(self.rot_agora)
 
-        self.barra_tempo = QSlider(Qt.Horizontal)
-        self.barra_tempo.setRange(0, 10000)
+        self.barra_tempo = BarraTempo()
         self.barra_tempo.setAccessibleName("Posição do vídeo")
-        self.barra_tempo.sliderPressed.connect(self._pegou_barra)
+        self.barra_tempo.setFocusPolicy(Qt.NoFocus)   # as setas sao do player
         self.barra_tempo.sliderMoved.connect(self._movendo_barra)
-        self.barra_tempo.sliderReleased.connect(self._soltou_barra)
+        self.barra_tempo.buscar.connect(self._buscar_fracao)
         linha.addWidget(self.barra_tempo, 1)
 
         self.rot_total = QLabel("0:00")
@@ -252,8 +300,11 @@ class TelaPlayer(QWidget):
 
         ctl = QHBoxLayout()
         ctl.setSpacing(tema.px(7, e))
+        self.b_anterior = self._botao("anterior", "Episódio anterior",
+                                      self.anterior, ctl)
         self.b_tocar = self._botao("pausar", "Pausar ou continuar (Espaço)",
                                    self.alternar, ctl, largura=52)
+        self.b_proximo = self._botao("proximo", "Próximo episódio", self.proximo, ctl)
         self.b_mudo = self._botao("som", "Sem som (M)", self._alternar_mudo, ctl)
 
         self.volume = QSlider(Qt.Horizontal)
@@ -296,6 +347,8 @@ class TelaPlayer(QWidget):
                 ("Up", lambda: self.volume.setValue(self.volume.value() + 5)),
                 ("Down", lambda: self.volume.setValue(self.volume.value() - 5)),
                 ("M", self._alternar_mudo),
+                ("Ctrl+Right", self.proximo),
+                ("Ctrl+Left", self.anterior),
                 ("F", self.alternar_tela_cheia),
                 ("Esc", self._escapar)):
             QShortcut(QKeySequence(sequencia), self, activated=funcao)
@@ -318,9 +371,13 @@ class TelaPlayer(QWidget):
 
     # -------------------------------------------------------------- tocar
 
-    def tocar(self, caminho: Path, titulo: str = "") -> bool:
+    def tocar(self, caminho: Path, titulo: str = "", fila: list | None = None,
+              indice: int = 0) -> bool:
         """Abre o arquivo. False quando o motor escolhido nao e embutido."""
         self.caminho, self.titulo = Path(caminho), titulo
+        self.fila = list(fila or [])
+        self.indice = indice
+        self._ajustar_fila()
         motor, _ = players.escolher(self.cfg)
 
         if not motor.recursos.embutido:
@@ -375,15 +432,37 @@ class TelaPlayer(QWidget):
             self.motor.tocar()
         self._acordar()
 
+    def _ajustar_fila(self) -> None:
+        """Liga ou desliga os botoes de episodio conforme onde estamos."""
+        tem_fila = len(self.fila) > 1
+        self.b_anterior.setVisible(tem_fila)
+        self.b_proximo.setVisible(tem_fila)
+        self.b_anterior.setEnabled(tem_fila and self.indice > 0)
+        self.b_proximo.setEnabled(tem_fila and self.indice < len(self.fila) - 1)
+
+    def _ir_para_episodio(self, novo_indice: int) -> None:
+        if not (0 <= novo_indice < len(self.fila)):
+            return
+        self._gravar_posicao()
+        if self.motor:
+            self.motor.encerrar()
+            self.motor = None
+        caminho, rotulo = self.fila[novo_indice]
+        fila, indice = self.fila, novo_indice
+        self.tocar(caminho, rotulo, fila=fila, indice=indice)
+
+    def anterior(self) -> None:
+        self._ir_para_episodio(self.indice - 1)
+
+    def proximo(self) -> None:
+        self._ir_para_episodio(self.indice + 1)
+
     def _pular(self, segundos: float) -> None:
         if self.motor:
             self.motor.ir_para(max(0, self.motor.posicao() + segundos))
             self._acordar()
 
     # ----------------------------------------------------- barra de tempo
-
-    def _pegou_barra(self) -> None:
-        self._arrastando = True
 
     def _movendo_barra(self, valor: int) -> None:
         """Enquanto arrasta, so mostra o alvo — nao busca a cada pixel.
@@ -396,13 +475,13 @@ class TelaPlayer(QWidget):
             total = self.motor.duracao()
             if total:
                 self.rot_agora.setText(_tempo(total * valor / 10000.0))
+        self._acordar()
 
-    def _soltou_barra(self) -> None:
-        self._arrastando = False
+    def _buscar_fracao(self, fracao: float) -> None:
         if self.motor:
             total = self.motor.duracao()
             if total:
-                self.motor.ir_para(total * self.barra_tempo.value() / 10000.0)
+                self.motor.ir_para(total * fracao)
         self._acordar()
 
     def _volume(self, valor: int) -> None:
@@ -492,7 +571,7 @@ class TelaPlayer(QWidget):
         if not self._faixas_montadas and total > 0:
             self._montar_faixas()
             QTimer.singleShot(1800, self._conferir_audio)
-        if not self._arrastando:
+        if not self.barra_tempo.isSliderDown():
             if total:
                 self.barra_tempo.setValue(int(10000 * agora / total))
             self.rot_agora.setText(_tempo(agora))
@@ -501,7 +580,12 @@ class TelaPlayer(QWidget):
             "pausar" if self.motor.tocando() else "tocar",
             self.paleta.forte, tema.px(22, self.escala)))
         if self.motor.terminou():
-            self.fechar()
+            # Numa serie, terminar um episodio e o momento de comecar o
+            # seguinte — nao de voltar ao catalogo.
+            if self.indice < len(self.fila) - 1:
+                self.proximo()
+            else:
+                self.fechar()
 
     def _gravar_posicao(self) -> None:
         if self.motor and self.caminho and self.motor.duracao():
@@ -518,7 +602,8 @@ class TelaPlayer(QWidget):
             self._acordar()
             return
         self._parado_ha += INTERVALO_CURSOR
-        if self._parado_ha >= ESPERA_PARA_SUMIR and not self._arrastando:
+        if (self._parado_ha >= ESPERA_PARA_SUMIR
+                and not self.barra_tempo.isSliderDown()):
             self.topo.sumir()
             self.barra.sumir()
             if self._cheia:

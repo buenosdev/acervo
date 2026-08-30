@@ -526,11 +526,64 @@ class GradeObras(QListView):
         self._deslizar.setDuration(210)
         self._deslizar.setEasingCurve(QEasingCurve.OutCubic)
 
+        # Previa ao pousar o mouse. So aparece depois de o mouse ficar parado:
+        # surgir no primeiro pixel transformaria varrer a grade com os olhos
+        # numa sequencia de paineis piscando.
+        self.setMouseTracking(True)
+        self.viewport().setMouseTracking(True)
+        self._sob_o_mouse = -1
+        self.previa: object | None = None
+        self._espera_previa = QTimer(self)
+        self._espera_previa.setSingleShot(True)
+        self._espera_previa.timeout.connect(self._mostrar_previa)
+
         carregador.sinais.pronta.connect(self._capa_chegou)
         self._repintar = QTimer(self)
         self._repintar.setSingleShot(True)
         self._repintar.setInterval(60)         # junta as que chegam em rajada
         self._repintar.timeout.connect(self._converter_e_repintar)
+
+    # --------------------------------------------------------------- previa
+
+    def ligar_previa(self, previa) -> None:
+        """Recebe o painel de previa, criado pela janela."""
+        self.previa = previa
+
+    def _mostrar_previa(self) -> None:
+        if self.previa is None or self._sob_o_mouse < 0:
+            return
+        indice = self.modelo.index(self._sob_o_mouse, 0)
+        obra = self.modelo.obra_em(indice)
+        if not obra:
+            return
+        area = self.visualRect(indice)
+        canto = self.viewport().mapToGlobal(area.topLeft())
+        from PySide6.QtCore import QRect
+
+        self.previa.mostrar_obra(obra, QRect(canto, area.size()))
+
+    def _esconder_previa(self) -> None:
+        self._espera_previa.stop()
+        if self.previa is not None:
+            self.previa.esconder()
+
+    def mouseMoveEvent(self, evento) -> None:              # noqa: N802
+        super().mouseMoveEvent(evento)
+        indice = self.indexAt(evento.position().toPoint())
+        linha = indice.row() if indice.isValid() else -1
+        if linha == self._sob_o_mouse:
+            return
+        self._sob_o_mouse = linha
+        self._esconder_previa()
+        if linha >= 0:
+            from .previa import ESPERA
+
+            self._espera_previa.start(ESPERA)
+
+    def leaveEvent(self, evento) -> None:                  # noqa: N802
+        super().leaveEvent(evento)
+        self._sob_o_mouse = -1
+        self._esconder_previa()
 
     def _capa_chegou(self, caminho: str, largura: int) -> None:
         self._repintar.start()
@@ -543,6 +596,7 @@ class GradeObras(QListView):
 
     def wheelEvent(self, evento) -> None:          # noqa: N802
         """Roda do mouse com deslizamento; touchpad fica com o Qt."""
+        self._esconder_previa()           # rolar com a previa aberta e confuso
         graus = evento.angleDelta().y()
         # Touchpad de precisao ja manda deslocamento em pixels e e suave por
         # natureza — animar por cima disso brigaria com o dedo do usuario.
@@ -567,6 +621,7 @@ class GradeObras(QListView):
         evento.accept()
 
     def _abrir(self, indice) -> None:
+        self._esconder_previa()
         obra = self.modelo.obra_em(indice)
         if obra:
             self.abrir.emit(obra["id"])

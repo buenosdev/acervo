@@ -15,7 +15,7 @@ _ESTADO_POR_RANK = {3: "completo", 2: "parcial", 1: "indice"}
 
 SQL_ITENS = f"""
 SELECT i.id, i.tipo, COALESCE(NULLIF(i.titulo_corrigido, ''), i.titulo) AS titulo,
-       i.ano, i.poster, i.nota, i.generos, i.fixado, i.sinopse,
+       i.ano, i.poster, i.nota, i.generos, i.fixado, i.sinopse, i.backdrop,
        COUNT(DISTINCT t.caminho)           AS n_torrents,
        COALESCE(SUM(t.tamanho_total), 0)   AS bytes_total,
        COALESCE(MAX({_RANK}), 1)           AS rank_estado,
@@ -43,6 +43,10 @@ def _linha(l: sqlite3.Row) -> dict:
         "qualidades": sorted({q for q in (l["qualidades"] or "").split(",") if q}),
         "idiomas": sorted({q for q in (l["idiomas"] or "").split(",") if q}),
         "temporadas": l["temporadas"], "seeders": l["seeders"],
+        # A previa ao passar o mouse mostra imagem de fundo e sinopse; sem
+        # elas aqui, cada previa faria uma consulta ao banco.
+        "backdrop": l["backdrop"] if "backdrop" in l.keys() else None,
+        "sinopse": l["sinopse"] if "sinopse" in l.keys() else None,
     }
 
 
