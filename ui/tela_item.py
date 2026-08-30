@@ -10,7 +10,7 @@ sinopse e uma acao principal que muda conforme o caso —
     so no indice ............ Baixar
 
 Abaixo, duas colunas: a esquerda vira **Episódios** em serie e **Arquivos** em
-filme e jogo; a direita e a ficha tecnica com Abrir pasta, Remover torrent e o
+filme e jogo; a direita e a ficha tecnica com Abrir pasta, apagar arquivos e o
 hash. Tudo e pagina da janela, nunca janela nova por cima.
 """
 from __future__ import annotations
@@ -689,6 +689,13 @@ class TelaItem(QScrollArea):
             b = QPushButton("Abrir pasta")
             b.clicked.connect(lambda: self._abrir_pasta(t_principal))
             col.addWidget(b)
+        if t_principal and t_principal.get("estado") in ("completo", "parcial"):
+            b_apagar = QPushButton("Apagar arquivos do disco")
+            b_apagar.setProperty("perigo", "true")
+            b_apagar.setAccessibleName("Escolher quais arquivos apagar do disco")
+            b_apagar.setToolTip("Libera espaço. O .torrent continua no índice.")
+            b_apagar.clicked.connect(self._apagar_arquivos)
+            col.addWidget(b_apagar)
         if t_principal:
             b2 = QPushButton("Remover torrent")
             b2.setProperty("perigo", "true")
@@ -972,6 +979,26 @@ class TelaItem(QScrollArea):
 
         self.executor.rodar(f"acao-{infohash}", lambda: funcao(cfg, infohash),
                             pronto, lambda m: self.retorno_acao.mostrar("erro", m))
+
+    def _apagar_arquivos(self) -> None:
+        """Abre a escolha de quais arquivos sair do disco.
+
+        Separado de "Remover torrent" porque sao coisas diferentes: aquele para
+        de semear e deixa a midia onde esta; este libera espaco e mantem o
+        .torrent no indice. Misturar os dois foi o que deixou "quero apagar o
+        arquivo" sem resposta na tela.
+        """
+        from .apagar_arquivos import ApagarArquivos
+
+        dialogo = ApagarArquivos(self.con, self.cfg, self.item_id, self.titulo,
+                                 self.paleta, self.escala, self)
+        dialogo.exec()
+        if dialogo.apagados:
+            self.retorno_ficha.mostrar(
+                "ok", f"{dialogo.apagados} arquivo(s) apagados.",
+                f"{formatar_bytes(dialogo.bytes_livres)} livres no disco.")
+            self.mudou.emit()
+            self.mostrar(self.item_id)
 
     def _remover(self, t: dict) -> None:
         caixa = QMessageBox(self)

@@ -203,10 +203,14 @@ class DelegateCartao(QStyledItemDelegate):
                 forca: float = 1.0) -> None:
         """A borda acendendo. `forca` vai de 0 a 1 ao longo da transicao.
 
-        Duas camadas: um halo largo e quase transparente por fora, e o traco
-        por dentro. O halo e o que da a impressao de luz em vez de contorno —
-        sem ele, mesmo com transicao, a borda parece um retangulo que liga e
-        desliga.
+        Tudo e desenhado DENTRO da celula, e por um motivo pratico: a versao
+        anterior punha o halo alguns pixels para fora, e como a transicao
+        repinta so a celula que mudou, o que vazara para as vizinhas ficava
+        la — a borda fantasma que sobrava depois de o mouse sair.
+
+        Sao duas camadas mesmo assim: um halo largo por dentro, recortado pela
+        propria celula, e o traco fino na borda. O halo e o que da impressao de
+        luz; so o traco pareceria um retangulo ligando e desligando.
         """
         if forca <= 0.01 and not focado:
             return
@@ -215,20 +219,20 @@ class DelegateCartao(QStyledItemDelegate):
         cor = QColor(pal.azul)
 
         p.save()
+        p.setClipRect(area)               # nada escapa para a celula vizinha
         p.setBrush(Qt.NoBrush)
 
-        # Halo: nasce colado na borda e se afasta um pouco enquanto acende.
+        # Halo por dentro: engrossa conforme acende. Metade do traco cai fora
+        # do recorte, e o que sobra e uma luz encostada na borda.
         halo = QColor(cor)
-        halo.setAlpha(int(46 * forca))
-        folga = 1.0 + 2.0 * forca
-        p.setPen(QPen(halo, 3.0 + 2.0 * forca))
-        p.drawRoundedRect(
-            QRectF(area.x() - folga, area.y() - folga,
-                   area.width() + folga * 2, area.height() + folga * 2),
-            6 + folga, 6 + folga)
+        halo.setAlpha(int(58 * forca))
+        largura_halo = 3.0 + 5.0 * forca
+        p.setPen(QPen(halo, largura_halo))
+        p.drawRoundedRect(QRectF(area.x() + 0.5, area.y() + 0.5,
+                                 area.width() - 1, area.height() - 1), 6, 6)
 
         traco = QColor(cor)
-        traco.setAlpha(int(90 + 165 * forca))
+        traco.setAlpha(int(70 + 185 * forca))
         p.setPen(QPen(traco, 2.0 if focado else 1.0 + 0.6 * forca))
         p.drawRoundedRect(QRectF(area.x() + 0.5, area.y() + 0.5,
                                  area.width() - 1, area.height() - 1), 6, 6)
